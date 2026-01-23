@@ -13,14 +13,13 @@ interface HomeProps {
 
 const SOURCES = ['arxiv', 'huggingface', 'blog', 'aggregator'];
 const CATEGORIES = [
-  'NLP',
-  'Computer Vision',
+  'AI',
   'Machine Learning',
-  'Reinforcement Learning',
   'Generative AI',
-  'AI Safety',
-  'LLM',
-  'Neural Networks',
+  'Tech News',
+  'Research',
+  'Discussion',
+  'Project',
 ];
 
 export function Home({ onViewDetail, selectedCategory, onCategoryChange }: HomeProps) {
