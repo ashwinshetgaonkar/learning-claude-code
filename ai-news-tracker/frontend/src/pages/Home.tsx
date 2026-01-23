@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useArticles } from '../hooks/useArticles';
 import { SearchBar } from '../components/SearchBar';
 import { FilterBar } from '../components/FilterBar';
@@ -7,6 +7,8 @@ import { Article } from '../api/client';
 
 interface HomeProps {
   onViewDetail: (article: Article) => void;
+  selectedCategory: string;
+  onCategoryChange: (category: string) => void;
 }
 
 const SOURCES = ['arxiv', 'huggingface', 'blog', 'aggregator'];
@@ -21,10 +23,10 @@ const CATEGORIES = [
   'Neural Networks',
 ];
 
-export function Home({ onViewDetail }: HomeProps) {
+export function Home({ onViewDetail, selectedCategory, onCategoryChange }: HomeProps) {
   const [selectedSource, setSelectedSource] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDays, setSelectedDays] = useState<number | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
 
   const {
     articles,
@@ -34,11 +36,19 @@ export function Home({ onViewDetail }: HomeProps) {
     search,
     toggleBookmark,
     generateSummary,
+    page,
+    totalPages,
+    setPage,
   } = useArticles({
     source: selectedSource || undefined,
     category: selectedCategory || undefined,
     days: selectedDays || undefined,
   });
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setPage(newPage);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [setPage]);
 
   const handleSearch = useCallback(
     (query: string) => {
@@ -60,11 +70,11 @@ export function Home({ onViewDetail }: HomeProps) {
         selectedCategory={selectedCategory}
         selectedDays={selectedDays}
         onSourceChange={setSelectedSource}
-        onCategoryChange={setSelectedCategory}
+        onCategoryChange={onCategoryChange}
         onDaysChange={setSelectedDays}
       />
 
-      <main className="flex-1 p-4 overflow-y-auto">
+      <main ref={mainRef} className="flex-1 p-4 overflow-y-auto">
         <ArticleList
           articles={articles}
           loading={loading}
@@ -72,6 +82,9 @@ export function Home({ onViewDetail }: HomeProps) {
           onBookmarkToggle={toggleBookmark}
           onGenerateSummary={generateSummary}
           onViewDetail={onViewDetail}
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
         />
       </main>
     </div>

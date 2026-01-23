@@ -17,25 +17,34 @@ interface UseArticlesOptions {
   bookmarkedOnly?: boolean;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export function useArticles(options: UseArticlesOptions = {}) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const loadArticles = useCallback(async () => {
+  const loadArticles = useCallback(async (pageNum: number = 1) => {
     setLoading(true);
     setError(null);
     try {
       if (options.bookmarkedOnly) {
         const response = await fetchBookmarks();
         setArticles(response.bookmarks);
+        setTotalPages(1);
       } else {
+        const offset = (pageNum - 1) * ITEMS_PER_PAGE;
         const response = await fetchArticles({
           source: options.source,
           category: options.category,
           days: options.days,
+          limit: ITEMS_PER_PAGE,
+          offset,
         });
         setArticles(response.articles);
+        setTotalPages(Math.ceil(response.total / ITEMS_PER_PAGE));
       }
     } catch (err) {
       setError('Failed to load articles');
@@ -45,17 +54,28 @@ export function useArticles(options: UseArticlesOptions = {}) {
     }
   }, [options.source, options.category, options.days, options.bookmarkedOnly]);
 
+  // Reset page to 1 when filters change
   useEffect(() => {
-    loadArticles();
+    setPage(1);
+    loadArticles(1);
+  }, [options.source, options.category, options.days, options.bookmarkedOnly]);
+
+  // Load articles when page changes (but not on initial mount or filter change)
+  const handlePageChange = useCallback((newPage: number) => {
+    setPage(newPage);
+    loadArticles(newPage);
   }, [loadArticles]);
 
   const search = async (query: string) => {
     if (!query.trim()) {
-      loadArticles();
+      setPage(1);
+      loadArticles(1);
       return;
     }
     setLoading(true);
     setError(null);
+    setPage(1);
+    setTotalPages(1);
     try {
       const response = await searchArticles(query);
       setArticles(response.articles);
@@ -72,7 +92,8 @@ export function useArticles(options: UseArticlesOptions = {}) {
     setError(null);
     try {
       await refreshAllSources();
-      await loadArticles();
+      setPage(1);
+      await loadArticles(1);
     } catch (err) {
       setError('Refresh failed');
       console.error(err);
@@ -125,5 +146,8 @@ export function useArticles(options: UseArticlesOptions = {}) {
     toggleBookmark,
     generateSummary,
     reload: loadArticles,
+    page,
+    totalPages,
+    setPage: handlePageChange,
   };
 }

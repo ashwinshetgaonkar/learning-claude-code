@@ -42,7 +42,13 @@ function App() {
       <Sidebar categories={CATEGORIES} onCategorySelect={handleCategorySelect} />
 
       <Routes>
-        <Route path="/" element={<Home onViewDetail={handleViewDetail} />} />
+        <Route path="/" element={
+          <Home
+            onViewDetail={handleViewDetail}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+          />
+        } />
         <Route path="/bookmarks" element={<Bookmarks onViewDetail={handleViewDetail} />} />
       </Routes>
 
