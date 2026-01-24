@@ -1,5 +1,6 @@
 import { Article } from '../api/client';
 import { ArticleCard } from './ArticleCard';
+import { Pagination } from './Pagination';
 
 interface ArticleListProps {
   articles: Article[];
@@ -8,6 +9,9 @@ interface ArticleListProps {
   onBookmarkToggle: (id: number) => void;
   onGenerateSummary: (id: number) => Promise<string | null>;
   onViewDetail: (article: Article) => void;
+  currentPage?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export function ArticleList({
@@ -17,6 +21,9 @@ export function ArticleList({
   onBookmarkToggle,
   onGenerateSummary,
   onViewDetail,
+  currentPage = 1,
+  totalPages = 1,
+  onPageChange,
 }: ArticleListProps) {
   if (loading) {
     return (
@@ -85,6 +92,13 @@ export function ArticleList({
           onViewDetail={onViewDetail}
         />
       ))}
+      {onPageChange && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   );
 }

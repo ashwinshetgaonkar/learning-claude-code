@@ -7,14 +7,13 @@ import { ArticleDetail } from './pages/ArticleDetail';
 import { Article } from './api/client';
 
 const CATEGORIES = [
-  'NLP',
-  'Computer Vision',
+  'AI',
   'Machine Learning',
-  'Reinforcement Learning',
   'Generative AI',
-  'AI Safety',
-  'LLM',
-  'Neural Networks',
+  'Tech News',
+  'Research',
+  'Discussion',
+  'Project',
 ];
 
 function App() {
@@ -42,7 +41,13 @@ function App() {
       <Sidebar categories={CATEGORIES} onCategorySelect={handleCategorySelect} />
 
       <Routes>
-        <Route path="/" element={<Home onViewDetail={handleViewDetail} />} />
+        <Route path="/" element={
+          <Home
+            onViewDetail={handleViewDetail}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+          />
+        } />
         <Route path="/bookmarks" element={<Bookmarks onViewDetail={handleViewDetail} />} />
       </Routes>
 

@@ -3,12 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, text, or_
 from typing import Optional, List
 from datetime import datetime, timedelta
+import json
 
 from ..database import get_db
 from ..models import Article
 from ..services.summarizer import summarizer_service
 
 router = APIRouter(prefix="/api/articles", tags=["articles"])
+# Category filter fix: parse JSON string if needed
 
 
 @router.get("")
@@ -35,22 +37,32 @@ async def list_articles(
         cutoff_date = datetime.utcnow() - timedelta(days=days)
         query = query.where(Article.published_at >= cutoff_date)
 
-    # Apply pagination
-    query = query.offset(offset).limit(limit)
-
+    # Fetch all matching articles first (before pagination)
     result = await db.execute(query)
-    articles = result.scalars().all()
+    all_articles = result.scalars().all()
 
     # Filter by category in Python (since it's stored as JSON)
     if category:
-        articles = [
-            a for a in articles
-            if a.categories and category in a.categories
-        ]
+        def has_category(article, cat):
+            cats = article.categories
+            if not cats:
+                return False
+            # Handle case where categories is a JSON string (SQLite)
+            if isinstance(cats, str):
+                cats = json.loads(cats)
+            return cat in cats
+
+        all_articles = [a for a in all_articles if has_category(a, category)]
+
+    # Calculate total before pagination
+    total = len(all_articles)
+
+    # Apply pagination in Python
+    paginated_articles = all_articles[offset:offset + limit]
 
     return {
-        "articles": [a.to_dict() for a in articles],
-        "total": len(articles),
+        "articles": [a.to_dict() for a in paginated_articles],
+        "total": total,
         "limit": limit,
         "offset": offset,
     }
