@@ -41,7 +41,7 @@ Summary:"""
 
         try:
             response = await self.client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 max_tokens=300,
                 messages=[
                     {"role": "user", "content": prompt}
@@ -85,7 +85,7 @@ Categories:"""
 
         try:
             response = await self.client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 max_tokens=100,
                 messages=[
                     {"role": "user", "content": prompt}
