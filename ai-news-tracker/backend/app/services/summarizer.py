@@ -1,4 +1,4 @@
-from anthropic import AsyncAnthropic
+from groq import AsyncGroq
 from typing import Optional
 from ..config import settings
 
@@ -6,8 +6,8 @@ from ..config import settings
 class SummarizerService:
     def __init__(self):
         self.client = None
-        if settings.anthropic_api_key:
-            self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        if settings.groq_api_key:
+            self.client = AsyncGroq(api_key=settings.groq_api_key)
 
     async def summarize(
         self,
@@ -15,7 +15,7 @@ class SummarizerService:
         abstract: str,
         content: Optional[str] = None
     ) -> Optional[str]:
-        """Generate a concise summary using Claude API."""
+        """Generate a concise summary using Groq API with Llama model."""
         if not self.client:
             return None
 
@@ -40,16 +40,16 @@ Keep the summary to 2-3 sentences maximum.
 Summary:"""
 
         try:
-            message = await self.client.messages.create(
-                model="claude-3-haiku-20240307",
+            response = await self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
                 max_tokens=300,
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
             )
 
-            if message.content:
-                return message.content[0].text.strip()
+            if response.choices:
+                return response.choices[0].message.content.strip()
             return None
 
         except Exception as e:
@@ -61,7 +61,7 @@ Summary:"""
         title: str,
         abstract: str
     ) -> list[str]:
-        """Auto-categorize an article using Claude API."""
+        """Auto-categorize an article using Groq API with Llama model."""
         if not self.client:
             return []
 
@@ -84,16 +84,16 @@ Abstract: {abstract}
 Categories:"""
 
         try:
-            message = await self.client.messages.create(
-                model="claude-3-haiku-20240307",
+            response = await self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
                 max_tokens=100,
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
             )
 
-            if message.content:
-                categories_text = message.content[0].text.strip()
+            if response.choices:
+                categories_text = response.choices[0].message.content.strip()
                 categories = [cat.strip() for cat in categories_text.split(",")]
                 return categories
             return []

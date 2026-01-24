@@ -4,7 +4,7 @@ import os
 
 
 class Settings(BaseSettings):
-    anthropic_api_key: str = ""
+    groq_api_key: str = ""
     database_url: str = "sqlite+aiosqlite:///./ai_news.db"
     cors_origins: str = "http://localhost:5173"
     reddit_client_id: str = ""
