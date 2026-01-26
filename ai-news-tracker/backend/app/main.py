@@ -10,7 +10,16 @@ from .routers import articles_router, sources_router, bookmarks_router, export_r
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await init_db()
+    import sys
+    print("Starting application...", file=sys.stderr, flush=True)
+    try:
+        await init_db()
+        print("Database initialized successfully", file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"ERROR initializing database: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc()
+        raise
     yield
     # Shutdown
     pass
