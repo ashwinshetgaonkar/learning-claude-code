@@ -6,9 +6,11 @@ from .export import router as export_router
 # Import agents router with fallback if dependencies are missing
 try:
     from .agents import router as agents_router
-except ImportError as e:
+except Exception as e:
     import sys
-    print(f"Warning: Could not import agents router: {e}", file=sys.stderr)
+    print(f"Warning: Could not import agents router: {type(e).__name__}: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc()
     from fastapi import APIRouter
     agents_router = APIRouter(prefix="/api/agents", tags=["agents"])
 

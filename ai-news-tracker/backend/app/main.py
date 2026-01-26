@@ -1,10 +1,25 @@
+import sys
+print("Loading main.py...", file=sys.stderr, flush=True)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+print("Importing config...", file=sys.stderr, flush=True)
 from .config import settings
+
+print("Importing database...", file=sys.stderr, flush=True)
 from .database import init_db
-from .routers import articles_router, sources_router, bookmarks_router, export_router, agents_router
+
+print("Importing routers...", file=sys.stderr, flush=True)
+try:
+    from .routers import articles_router, sources_router, bookmarks_router, export_router, agents_router
+    print("Routers imported successfully", file=sys.stderr, flush=True)
+except Exception as e:
+    print(f"ERROR importing routers: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+    import traceback
+    traceback.print_exc()
+    raise
 
 
 @asynccontextmanager
