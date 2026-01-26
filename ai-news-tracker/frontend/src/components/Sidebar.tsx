@@ -11,6 +11,7 @@ export function Sidebar({ categories, onCategorySelect }: SidebarProps) {
   const navItems = [
     { path: '/', label: 'All Articles', icon: '📰' },
     { path: '/bookmarks', label: 'Bookmarks', icon: '⭐' },
+    { path: '/research', label: 'Research Agent', icon: '🔍' },
   ];
 
   return (

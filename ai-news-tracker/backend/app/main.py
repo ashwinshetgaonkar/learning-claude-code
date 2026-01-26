@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from .config import settings
 from .database import init_db
-from .routers import articles_router, sources_router, bookmarks_router, export_router
+from .routers import articles_router, sources_router, bookmarks_router, export_router, agents_router
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(articles_router)
 app.include_router(sources_router)
 app.include_router(bookmarks_router)
 app.include_router(export_router)
+app.include_router(agents_router)
 
 
 @app.get("/")

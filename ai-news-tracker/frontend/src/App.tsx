@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { Home } from './pages/Home';
 import { Bookmarks } from './pages/Bookmarks';
 import { ArticleDetail } from './pages/ArticleDetail';
+import Research from './pages/Research';
 import { Article } from './api/client';
 
 const CATEGORIES = [
@@ -49,6 +50,7 @@ function App() {
           />
         } />
         <Route path="/bookmarks" element={<Bookmarks onViewDetail={handleViewDetail} />} />
+        <Route path="/research" element={<Research />} />
       </Routes>
 
       {selectedArticle && (
