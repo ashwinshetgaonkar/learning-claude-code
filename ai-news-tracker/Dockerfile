@@ -88,10 +88,11 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 EOF
 
-# Create data directory for SQLite
-RUN mkdir -p /data
+# Create data directory for SQLite (in /app where backend runs)
+RUN mkdir -p /app/data
 
-ENV DATABASE_URL=sqlite+aiosqlite:///./data/ai_news.db
+ENV DATABASE_URL=sqlite+aiosqlite:////app/data/ai_news.db
+ENV CORS_ORIGINS=*
 ENV PORT=8080
 
 EXPOSE 8080
