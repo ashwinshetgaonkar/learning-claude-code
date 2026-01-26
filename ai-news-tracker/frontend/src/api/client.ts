@@ -109,51 +109,6 @@ export const getArticlePdfUrl = (id: number): string => `${API_BASE}/articles/${
 export const getArticleMarkdownUrl = (id: number): string => `${API_BASE}/articles/${id}/markdown`;
 
 // Research Agents API
-export interface ArxivResult {
-  title: string;
-  authors: string[];
-  abstract: string;
-  url: string;
-  pdf_url: string;
-  published: string | null;
-  categories: string[];
-}
-
-export interface WikipediaResult {
-  title: string;
-  summary: string;
-  url: string;
-  categories: string[];
-}
-
-export interface TavilyResult {
-  title: string;
-  content: string;
-  url: string;
-  score: number;
-}
-
-export interface ResearchSearchResponse {
-  query: string;
-  sources: {
-    arxiv?: {
-      results: ArxivResult[];
-      count: number;
-      error?: string;
-    };
-    wikipedia?: {
-      results: WikipediaResult[];
-      count: number;
-      error?: string;
-    };
-    tavily?: {
-      answer: string | null;
-      results: TavilyResult[];
-      error?: string;
-    };
-  };
-}
-
 export interface ResearchSource {
   name: string;
   description: string;
@@ -163,14 +118,13 @@ export interface ResearchSource {
 
 export const searchResearch = async (params: {
   q: string;
-  sources?: string;
-  max_results?: number;
-}): Promise<ResearchSearchResponse> => {
+  source?: string;
+}): Promise<any> => {
   const response = await axios.get(`${API_BASE}/agents/search`, { params });
   return response.data;
 };
 
-export const getResearchSources = async (): Promise<{ sources: ResearchSource[] }> => {
+export const getResearchSources = async (): Promise<any> => {
   const response = await axios.get(`${API_BASE}/agents/sources`);
   return response.data;
 };

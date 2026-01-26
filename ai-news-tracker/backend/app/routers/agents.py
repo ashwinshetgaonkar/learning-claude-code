@@ -1,14 +1,15 @@
 """
 Research Agents API Router
 
-Provides endpoints for searching research data across multiple sources
-using LangChain-integrated tools.
+Provides endpoints for searching research data using LangChain agent
+with Groq LLM orchestrating multiple tools (arXiv, Wikipedia, Tavily).
 """
 
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional, List
+from typing import Optional
 
 from ..services.research_agent import research_agent
+from ..config import settings
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -16,42 +17,39 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 @router.get("/search")
 async def search_research(
     q: str = Query(..., min_length=2, description="Search query"),
-    sources: Optional[str] = Query(
+    source: Optional[str] = Query(
         None,
-        description="Comma-separated list of sources (arxiv,wikipedia,tavily). Default: all"
+        description="Specific source to search (arxiv, wikipedia, tavily). If not specified, uses AI agent to search all."
     ),
-    max_results: int = Query(5, ge=1, le=20, description="Max results per source"),
 ):
     """
-    Search across multiple research sources.
+    Search across multiple research sources using an AI agent.
 
-    Returns aggregated results from:
+    The agent uses Groq LLM (llama-3.1-8b-instant) to intelligently search:
     - **arXiv**: Academic papers and preprints
     - **Wikipedia**: General knowledge articles
-    - **Tavily**: Web search with AI-generated answer
+    - **Tavily**: Web search (if API key configured)
+
+    The AI will decide which sources are most relevant and synthesize the results.
 
     Example:
     ```
-    GET /api/agents/search?q=transformer+architecture&sources=arxiv,wikipedia&max_results=5
+    GET /api/agents/search?q=transformer+architecture
+    GET /api/agents/search?q=neural+networks&source=arxiv
     ```
     """
-    # Parse sources
-    source_list = None
-    if sources:
-        source_list = [s.strip().lower() for s in sources.split(",")]
+    if source:
+        # Search specific source
         valid_sources = {"arxiv", "wikipedia", "tavily"}
-        invalid = set(source_list) - valid_sources
-        if invalid:
+        if source.lower() not in valid_sources:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid sources: {invalid}. Valid sources: {valid_sources}"
+                detail=f"Invalid source: {source}. Valid sources: {valid_sources}"
             )
-
-    results = await research_agent.search_all(
-        query=q,
-        sources=source_list,
-        max_results_per_source=max_results
-    )
+        results = await research_agent.search_source(q, source.lower())
+    else:
+        # Use AI agent to search all sources
+        results = await research_agent.search(q)
 
     return results
 
@@ -61,8 +59,6 @@ async def list_sources():
     """
     List available research sources and their status.
     """
-    from ..config import settings
-
     return {
         "sources": [
             {
@@ -83,5 +79,10 @@ async def list_sources():
                 "available": bool(settings.tavily_api_key),
                 "requires_api_key": True,
             },
-        ]
+        ],
+        "llm": {
+            "provider": "groq",
+            "model": "llama-3.1-8b-instant",
+            "configured": bool(settings.groq_api_key),
+        }
     }
