@@ -8,22 +8,54 @@ Uses the same Groq LLM as the summarizer to orchestrate research tools:
 """
 
 import asyncio
+import sys
 from typing import Optional, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
-from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, SystemMessage
-
-import arxiv
-import wikipedia
-from tavily import TavilyClient
-
 from ..config import settings
+
+# Import optional dependencies with fallback
+try:
+    from langchain_groq import ChatGroq
+    from langchain_core.messages import HumanMessage, SystemMessage
+    LANGCHAIN_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: LangChain not available: {e}", file=sys.stderr)
+    LANGCHAIN_AVAILABLE = False
+    ChatGroq = None
+    HumanMessage = None
+    SystemMessage = None
+
+try:
+    import arxiv
+    ARXIV_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: arxiv not available: {e}", file=sys.stderr)
+    ARXIV_AVAILABLE = False
+    arxiv = None
+
+try:
+    import wikipedia
+    WIKIPEDIA_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: wikipedia not available: {e}", file=sys.stderr)
+    WIKIPEDIA_AVAILABLE = False
+    wikipedia = None
+
+try:
+    from tavily import TavilyClient
+    TAVILY_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: tavily not available: {e}", file=sys.stderr)
+    TAVILY_AVAILABLE = False
+    TavilyClient = None
 
 
 # Define tools as simple functions
 def _search_arxiv(query: str, max_results: int = 5) -> List[Dict]:
     """Search arXiv for academic papers."""
+    if not ARXIV_AVAILABLE:
+        return [{"error": "arxiv package not installed"}]
     try:
         client = arxiv.Client()
         search = arxiv.Search(
@@ -48,6 +80,8 @@ def _search_arxiv(query: str, max_results: int = 5) -> List[Dict]:
 
 def _search_wikipedia(query: str, max_results: int = 3) -> List[Dict]:
     """Search Wikipedia for articles."""
+    if not WIKIPEDIA_AVAILABLE:
+        return [{"error": "wikipedia package not installed"}]
     try:
         search_results = wikipedia.search(query, results=max_results)
         results = []
@@ -69,6 +103,8 @@ def _search_wikipedia(query: str, max_results: int = 3) -> List[Dict]:
 
 def _search_tavily(query: str, max_results: int = 5) -> Dict:
     """Search web using Tavily."""
+    if not TAVILY_AVAILABLE:
+        return {"error": "tavily package not installed"}
     if not settings.tavily_api_key:
         return {"error": "Tavily API key not configured"}
     try:
@@ -104,8 +140,12 @@ class ResearchAgentService:
 
     def _initialize_llm(self):
         """Initialize the Groq LLM."""
+        if not LANGCHAIN_AVAILABLE:
+            print("Warning: LangChain not available. Research agent will use fallback mode.", file=sys.stderr)
+            return
+
         if not settings.groq_api_key:
-            print("Warning: GROQ_API_KEY not configured. Research agent will use fallback mode.")
+            print("Warning: GROQ_API_KEY not configured. Research agent will use fallback mode.", file=sys.stderr)
             return
 
         try:
@@ -115,7 +155,7 @@ class ResearchAgentService:
                 temperature=0,
             )
         except Exception as e:
-            print(f"Error initializing Groq LLM: {e}")
+            print(f"Error initializing Groq LLM: {e}", file=sys.stderr)
 
     async def search(self, query: str) -> Dict[str, Any]:
         """
