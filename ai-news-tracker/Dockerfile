@@ -62,11 +62,31 @@ server {
 }
 EOF
 
+# Startup script to run both services
+COPY <<'EOF' /app/start.sh
+#!/bin/bash
+set -e
+
+echo "Starting AI News Tracker..."
+echo "DATABASE_URL: $DATABASE_URL"
+echo "CORS_ORIGINS: $CORS_ORIGINS"
+
+# Start nginx in background
+nginx -g "daemon off;" &
+NGINX_PID=$!
+
+# Start backend
+cd /app
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
+EOF
+RUN chmod +x /app/start.sh
+
 # Supervisor config to run both nginx and uvicorn
 COPY <<'EOF' /etc/supervisor/conf.d/supervisord.conf
 [supervisord]
 nodaemon=true
 user=root
+loglevel=debug
 
 [program:nginx]
 command=nginx -g "daemon off;"
@@ -78,14 +98,16 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 [program:backend]
-command=uvicorn app.main:app --host 127.0.0.1 --port 8000
+command=uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
 directory=/app
 autostart=true
-autorestart=true
+autorestart=unexpected
+startretries=3
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
+environment=PYTHONUNBUFFERED="1"
 EOF
 
 # Create data directory for SQLite (in /app where backend runs)
