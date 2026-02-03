@@ -6,6 +6,7 @@ import os
 class Settings(BaseSettings):
     groq_api_key: str = ""
     tavily_api_key: str = ""
+    youtube_api_key: str = ""
     database_url: str = "sqlite+aiosqlite:///./ai_news.db"
     cors_origins: str = "http://localhost:5173"
     reddit_client_id: str = ""

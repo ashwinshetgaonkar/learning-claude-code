@@ -40,7 +40,7 @@ async def search_research(
     """
     if source:
         # Search specific source
-        valid_sources = {"arxiv", "wikipedia", "tavily"}
+        valid_sources = {"arxiv", "wikipedia", "tavily", "youtube"}
         if source.lower() not in valid_sources:
             raise HTTPException(
                 status_code=400,
@@ -77,6 +77,12 @@ async def list_sources():
                 "name": "tavily",
                 "description": "Web search with AI-generated answers",
                 "available": bool(settings.tavily_api_key),
+                "requires_api_key": True,
+            },
+            {
+                "name": "youtube",
+                "description": "Educational videos and tutorials from YouTube",
+                "available": bool(settings.youtube_api_key),
                 "requires_api_key": True,
             },
         ],

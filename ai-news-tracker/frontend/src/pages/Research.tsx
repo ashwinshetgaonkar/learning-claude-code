@@ -28,6 +28,16 @@ interface TavilyResult {
   error?: string;
 }
 
+interface YouTubeVideo {
+  title: string;
+  channel: string;
+  description: string;
+  url: string;
+  thumbnail_url: string;
+  published_at: string;
+  error?: string;
+}
+
 interface SearchResult {
   query: string;
   response?: string;
@@ -35,6 +45,7 @@ interface SearchResult {
     arxiv?: ArxivPaper[];
     wikipedia?: WikiArticle[];
     tavily?: TavilyResult | null;
+    youtube?: YouTubeVideo[];
   };
   success: boolean;
 }
@@ -289,6 +300,37 @@ export default function Research() {
                         ))}
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* YouTube Results */}
+              {results.sources.youtube && results.sources.youtube.length > 0 && !results.sources.youtube[0]?.error && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm">YouTube</span>
+                    Videos
+                  </h3>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <div className="space-y-4">
+                      {results.sources.youtube.map((video, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded border flex gap-4">
+                          <img
+                            src={video.thumbnail_url}
+                            alt={video.title}
+                            className="w-32 h-20 rounded object-cover flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a href={video.url} target="_blank" rel="noopener noreferrer"
+                               className="text-blue-600 hover:underline font-medium line-clamp-2">
+                              {video.title}
+                            </a>
+                            <p className="text-sm text-gray-500 mt-1">{video.channel}</p>
+                            <p className="text-sm text-gray-700 mt-1 line-clamp-2">{video.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

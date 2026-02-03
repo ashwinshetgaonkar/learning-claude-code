@@ -50,6 +50,13 @@ except ImportError as e:
     TAVILY_AVAILABLE = False
     TavilyClient = None
 
+try:
+    from googleapiclient.discovery import build
+    YOUTUBE_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: YouTube API not available: {e}", file=sys.stderr)
+    YOUTUBE_AVAILABLE = False
+
 
 # Define tools as simple functions
 def _search_arxiv(query: str, max_results: int = 5) -> List[Dict]:
@@ -130,6 +137,40 @@ def _search_tavily(query: str, max_results: int = 5) -> Dict:
         return {"error": str(e)}
 
 
+def _search_youtube(query: str, max_results: int = 5) -> List[Dict]:
+    """Search YouTube for relevant videos."""
+    if not YOUTUBE_AVAILABLE:
+        return [{"error": "google-api-python-client not installed"}]
+    if not settings.youtube_api_key:
+        return [{"error": "YouTube API key not configured"}]
+    try:
+        youtube = build('youtube', 'v3', developerKey=settings.youtube_api_key)
+        request = youtube.search().list(
+            q=query,
+            part='snippet',
+            type='video',
+            maxResults=max_results,
+            relevanceLanguage='en'
+        )
+        response = request.execute()
+
+        results = []
+        for item in response.get('items', []):
+            snippet = item['snippet']
+            video_id = item['id']['videoId']
+            results.append({
+                "title": snippet['title'],
+                "channel": snippet['channelTitle'],
+                "description": snippet['description'][:200] if snippet['description'] else "",
+                "url": f"https://www.youtube.com/watch?v={video_id}",
+                "thumbnail_url": snippet['thumbnails']['medium']['url'],
+                "published_at": snippet['publishedAt'],
+            })
+        return results
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
 class ResearchAgentService:
     """Service for searching research data using Groq LLM."""
 
@@ -168,20 +209,33 @@ class ResearchAgentService:
         wiki_task = loop.run_in_executor(self.executor, _search_wikipedia, query)
 
         tasks = [arxiv_task, wiki_task]
+        task_names = ['arxiv', 'wiki']
+
         if settings.tavily_api_key:
             tavily_task = loop.run_in_executor(self.executor, _search_tavily, query)
             tasks.append(tavily_task)
+            task_names.append('tavily')
+
+        if settings.youtube_api_key:
+            youtube_task = loop.run_in_executor(self.executor, _search_youtube, query)
+            tasks.append(youtube_task)
+            task_names.append('youtube')
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         arxiv_results = results[0] if not isinstance(results[0], Exception) else []
         wiki_results = results[1] if not isinstance(results[1], Exception) else []
-        tavily_results = results[2] if len(results) > 2 and not isinstance(results[2], Exception) else None
+
+        tavily_idx = task_names.index('tavily') if 'tavily' in task_names else -1
+        youtube_idx = task_names.index('youtube') if 'youtube' in task_names else -1
+
+        tavily_results = results[tavily_idx] if tavily_idx >= 0 and not isinstance(results[tavily_idx], Exception) else None
+        youtube_results = results[youtube_idx] if youtube_idx >= 0 and not isinstance(results[youtube_idx], Exception) else None
 
         # Use LLM to synthesize if available
         if self.llm:
             try:
-                synthesis = await self._synthesize_results(query, arxiv_results, wiki_results, tavily_results)
+                synthesis = await self._synthesize_results(query, arxiv_results, wiki_results, tavily_results, youtube_results)
                 return {
                     "query": query,
                     "response": synthesis,
@@ -189,6 +243,7 @@ class ResearchAgentService:
                         "arxiv": arxiv_results,
                         "wikipedia": wiki_results,
                         "tavily": tavily_results,
+                        "youtube": youtube_results,
                     },
                     "success": True,
                 }
@@ -202,6 +257,7 @@ class ResearchAgentService:
                 "arxiv": arxiv_results,
                 "wikipedia": wiki_results,
                 "tavily": tavily_results,
+                "youtube": youtube_results,
             },
             "success": True,
         }
@@ -211,7 +267,8 @@ class ResearchAgentService:
         query: str,
         arxiv_results: List[Dict],
         wiki_results: List[Dict],
-        tavily_results: Optional[Dict]
+        tavily_results: Optional[Dict],
+        youtube_results: Optional[List[Dict]] = None
     ) -> str:
         """Use LLM to synthesize search results into a coherent response."""
 
@@ -241,6 +298,13 @@ class ResearchAgentService:
                     for r in tavily_results["results"][:3]
                 ])
                 context_parts.append(f"**Web Results:**\n{web_text}")
+
+        if youtube_results and not any("error" in r for r in youtube_results):
+            youtube_text = "\n".join([
+                f"- {r['title']} by {r['channel']}: {r.get('description', '')[:100]}"
+                for r in youtube_results[:3]
+            ])
+            context_parts.append(f"**YouTube Videos:**\n{youtube_text}")
 
         if not context_parts:
             return "No results found from any source."
@@ -273,6 +337,8 @@ Provide a 2-3 paragraph summary that answers the query and cites which sources t
             results = await loop.run_in_executor(self.executor, _search_wikipedia, query)
         elif source == "tavily":
             results = await loop.run_in_executor(self.executor, _search_tavily, query)
+        elif source == "youtube":
+            results = await loop.run_in_executor(self.executor, _search_youtube, query)
         else:
             return {"error": f"Unknown source: {source}"}
 
