@@ -73,6 +73,7 @@ export default function Research() {
   const [selectedSource, setSelectedSource] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeResultTab, setActiveResultTab] = useState<string>('all');
 
   // Load available sources on mount
   useEffect(() => {
@@ -94,6 +95,7 @@ export default function Research() {
     setLoading(true);
     setError(null);
     setResults(null);
+    setActiveResultTab('all');
 
     try {
       const params: { q: string; source?: string } = { q: query };
@@ -221,119 +223,188 @@ export default function Research() {
             </div>
           )}
 
-          {/* Individual Source Results */}
+          {/* Source Navigation Tabs */}
           {results.sources && (
-            <div className="space-y-6">
-              {/* arXiv Results */}
-              {results.sources.arxiv && results.sources.arxiv.length > 0 && !results.sources.arxiv[0]?.error && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-sm">arXiv</span>
-                    Academic Papers
-                  </h3>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <div className="space-y-4">
-                      {results.sources.arxiv.map((paper, idx) => (
-                        <div key={idx} className="p-3 bg-white rounded border">
-                          <a href={paper.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
-                            {paper.title}
-                          </a>
-                          <p className="text-sm text-gray-500 mt-1">{paper.authors?.join(', ')}</p>
-                          <p className="text-sm text-gray-700 mt-2">{paper.abstract}</p>
-                          {paper.pdf_url && (
-                            <a href={paper.pdf_url} target="_blank" rel="noopener noreferrer" className="text-xs text-red-600 hover:underline mt-2 inline-block">
-                              PDF
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div>
+              {/* Tab Navigation */}
+              <div className="flex gap-2 mb-4 flex-wrap border-b border-gray-200 pb-3">
+                <button
+                  onClick={() => setActiveResultTab('all')}
+                  className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                    activeResultTab === 'all'
+                      ? 'bg-blue-100 text-blue-700 border-b-2 border-blue-600'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  All Sources
+                </button>
+                {results.sources.arxiv && results.sources.arxiv.length > 0 && !results.sources.arxiv[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('arxiv')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'arxiv'
+                        ? 'bg-orange-100 text-orange-700 border-b-2 border-orange-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    arXiv ({results.sources.arxiv.length})
+                  </button>
+                )}
+                {results.sources.wikipedia && results.sources.wikipedia.length > 0 && !results.sources.wikipedia[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('wikipedia')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'wikipedia'
+                        ? 'bg-gray-300 text-gray-800 border-b-2 border-gray-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Wikipedia ({results.sources.wikipedia.length})
+                  </button>
+                )}
+                {results.sources.tavily && !results.sources.tavily.error && (
+                  <button
+                    onClick={() => setActiveResultTab('tavily')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'tavily'
+                        ? 'bg-green-100 text-green-700 border-b-2 border-green-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Tavily ({results.sources.tavily.results?.length || 0})
+                  </button>
+                )}
+                {results.sources.youtube && results.sources.youtube.length > 0 && !results.sources.youtube[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('youtube')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'youtube'
+                        ? 'bg-red-100 text-red-700 border-b-2 border-red-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    YouTube ({results.sources.youtube.length})
+                  </button>
+                )}
+              </div>
 
-              {/* Wikipedia Results */}
-              {results.sources.wikipedia && results.sources.wikipedia.length > 0 && !results.sources.wikipedia[0]?.error && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-sm">Wikipedia</span>
-                    Articles
-                  </h3>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <div className="space-y-4">
-                      {results.sources.wikipedia.map((article, idx) => (
-                        <div key={idx} className="p-3 bg-white rounded border">
-                          <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
-                            {article.title}
-                          </a>
-                          <p className="text-sm text-gray-700 mt-2">{article.summary}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tavily Results */}
-              {results.sources.tavily && !results.sources.tavily.error && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">Tavily</span>
-                    Web Results
-                  </h3>
-                  <div className="p-4 bg-gray-50 rounded-lg space-y-4">
-                    {results.sources.tavily.answer && (
-                      <div className="p-3 bg-green-50 border border-green-200 rounded">
-                        <p className="text-sm font-medium text-green-800 mb-1">AI Answer:</p>
-                        <p className="text-sm text-gray-700">{results.sources.tavily.answer}</p>
-                      </div>
-                    )}
-                    {results.sources.tavily.results && results.sources.tavily.results.length > 0 && (
-                      <div className="space-y-3">
-                        {results.sources.tavily.results.map((result, idx) => (
+              {/* Tab Content */}
+              <div className="space-y-6">
+                {/* arXiv Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'arxiv') &&
+                 results.sources.arxiv && results.sources.arxiv.length > 0 && !results.sources.arxiv[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-sm">arXiv</span>
+                      Academic Papers
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.arxiv.map((paper, idx) => (
                           <div key={idx} className="p-3 bg-white rounded border">
-                            <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
-                              {result.title}
+                            <a href={paper.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                              {paper.title}
                             </a>
-                            <p className="text-sm text-gray-700 mt-2">{result.content}</p>
+                            <p className="text-sm text-gray-500 mt-1">{paper.authors?.join(', ')}</p>
+                            <p className="text-sm text-gray-700 mt-2">{paper.abstract}</p>
+                            {paper.pdf_url && (
+                              <a href={paper.pdf_url} target="_blank" rel="noopener noreferrer" className="text-xs text-red-600 hover:underline mt-2 inline-block">
+                                PDF
+                              </a>
+                            )}
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* YouTube Results */}
-              {results.sources.youtube && results.sources.youtube.length > 0 && !results.sources.youtube[0]?.error && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm">YouTube</span>
-                    Videos
-                  </h3>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <div className="space-y-4">
-                      {results.sources.youtube.map((video, idx) => (
-                        <div key={idx} className="p-3 bg-white rounded border flex gap-4">
-                          <img
-                            src={video.thumbnail_url}
-                            alt={video.title}
-                            className="w-32 h-20 rounded object-cover flex-shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <a href={video.url} target="_blank" rel="noopener noreferrer"
-                               className="text-blue-600 hover:underline font-medium line-clamp-2">
-                              {video.title}
-                            </a>
-                            <p className="text-sm text-gray-500 mt-1">{video.channel}</p>
-                            <p className="text-sm text-gray-700 mt-1 line-clamp-2">{video.description}</p>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Wikipedia Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'wikipedia') &&
+                 results.sources.wikipedia && results.sources.wikipedia.length > 0 && !results.sources.wikipedia[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-sm">Wikipedia</span>
+                      Articles
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.wikipedia.map((article, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded border">
+                            <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                              {article.title}
+                            </a>
+                            <p className="text-sm text-gray-700 mt-2">{article.summary}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tavily Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'tavily') &&
+                 results.sources.tavily && !results.sources.tavily.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">Tavily</span>
+                      Web Results
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg space-y-4">
+                      {results.sources.tavily.answer && (
+                        <div className="p-3 bg-green-50 border border-green-200 rounded">
+                          <p className="text-sm font-medium text-green-800 mb-1">AI Answer:</p>
+                          <p className="text-sm text-gray-700">{results.sources.tavily.answer}</p>
+                        </div>
+                      )}
+                      {results.sources.tavily.results && results.sources.tavily.results.length > 0 && (
+                        <div className="space-y-3">
+                          {results.sources.tavily.results.map((result, idx) => (
+                            <div key={idx} className="p-3 bg-white rounded border">
+                              <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                                {result.title}
+                              </a>
+                              <p className="text-sm text-gray-700 mt-2">{result.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* YouTube Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'youtube') &&
+                 results.sources.youtube && results.sources.youtube.length > 0 && !results.sources.youtube[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm">YouTube</span>
+                      Videos
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.youtube.map((video, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded border flex gap-4">
+                            <img
+                              src={video.thumbnail_url}
+                              alt={video.title}
+                              className="w-32 h-20 rounded object-cover flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <a href={video.url} target="_blank" rel="noopener noreferrer"
+                                 className="text-blue-600 hover:underline font-medium line-clamp-2">
+                                {video.title}
+                              </a>
+                              <p className="text-sm text-gray-500 mt-1">{video.channel}</p>
+                              <p className="text-sm text-gray-700 mt-1 line-clamp-2">{video.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

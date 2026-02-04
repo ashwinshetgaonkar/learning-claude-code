@@ -58,6 +58,18 @@ except ImportError as e:
     YOUTUBE_AVAILABLE = False
 
 
+# AI/ML domain context for searches
+AI_ML_CONTEXT = "AI machine learning deep learning"
+YOUTUBE_AI_ML_CONTEXT = "AI machine learning tutorial deep learning neural network"
+
+
+def _add_ai_ml_context(query: str, source: str = "general") -> str:
+    """Add AI/ML domain context to search query for more relevant results."""
+    if source == "youtube":
+        return f"{query} {YOUTUBE_AI_ML_CONTEXT}"
+    return f"{query} {AI_ML_CONTEXT}"
+
+
 # Define tools as simple functions
 def _search_arxiv(query: str, max_results: int = 5) -> List[Dict]:
     """Search arXiv for academic papers."""
@@ -204,20 +216,24 @@ class ResearchAgentService:
         """
         loop = asyncio.get_event_loop()
 
+        # Add AI/ML context for more relevant results
+        enhanced_query = _add_ai_ml_context(query)
+
         # Run all searches concurrently
-        arxiv_task = loop.run_in_executor(self.executor, _search_arxiv, query)
-        wiki_task = loop.run_in_executor(self.executor, _search_wikipedia, query)
+        arxiv_task = loop.run_in_executor(self.executor, _search_arxiv, enhanced_query)
+        wiki_task = loop.run_in_executor(self.executor, _search_wikipedia, enhanced_query)
 
         tasks = [arxiv_task, wiki_task]
         task_names = ['arxiv', 'wiki']
 
         if settings.tavily_api_key:
-            tavily_task = loop.run_in_executor(self.executor, _search_tavily, query)
+            tavily_task = loop.run_in_executor(self.executor, _search_tavily, enhanced_query)
             tasks.append(tavily_task)
             task_names.append('tavily')
 
         if settings.youtube_api_key:
-            youtube_task = loop.run_in_executor(self.executor, _search_youtube, query)
+            youtube_enhanced_query = _add_ai_ml_context(query, "youtube")
+            youtube_task = loop.run_in_executor(self.executor, _search_youtube, youtube_enhanced_query)
             tasks.append(youtube_task)
             task_names.append('youtube')
 
@@ -331,14 +347,18 @@ Provide a 2-3 paragraph summary that answers the query and cites which sources t
         """Search a specific source."""
         loop = asyncio.get_event_loop()
 
+        # Add AI/ML context for more relevant results
+        enhanced_query = _add_ai_ml_context(query)
+
         if source == "arxiv":
-            results = await loop.run_in_executor(self.executor, _search_arxiv, query)
+            results = await loop.run_in_executor(self.executor, _search_arxiv, enhanced_query)
         elif source == "wikipedia":
-            results = await loop.run_in_executor(self.executor, _search_wikipedia, query)
+            results = await loop.run_in_executor(self.executor, _search_wikipedia, enhanced_query)
         elif source == "tavily":
-            results = await loop.run_in_executor(self.executor, _search_tavily, query)
+            results = await loop.run_in_executor(self.executor, _search_tavily, enhanced_query)
         elif source == "youtube":
-            results = await loop.run_in_executor(self.executor, _search_youtube, query)
+            youtube_query = _add_ai_ml_context(query, "youtube")
+            results = await loop.run_in_executor(self.executor, _search_youtube, youtube_query)
         else:
             return {"error": f"Unknown source: {source}"}
 
