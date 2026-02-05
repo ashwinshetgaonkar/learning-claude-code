@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
 import { useArticles } from '../hooks/useArticles';
-import { SearchBar } from '../components/SearchBar';
 import { FilterBar } from '../components/FilterBar';
 import { ArticleList } from '../components/ArticleList';
 import { Article } from '../api/client';
@@ -31,8 +30,6 @@ export function Home({ onViewDetail, selectedCategory, onCategoryChange }: HomeP
     articles,
     loading,
     error,
-    refresh,
-    search,
     toggleBookmark,
     generateSummary,
     page,
@@ -49,19 +46,8 @@ export function Home({ onViewDetail, selectedCategory, onCategoryChange }: HomeP
     mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [setPage]);
 
-  const handleSearch = useCallback(
-    (query: string) => {
-      search(query);
-    },
-    [search]
-  );
-
   return (
     <div className="flex-1 flex flex-col">
-      <header className="bg-white border-b border-gray-200 p-4">
-        <SearchBar onSearch={handleSearch} onRefresh={refresh} isLoading={loading} />
-      </header>
-
       <FilterBar
         sources={SOURCES}
         categories={CATEGORIES}
