@@ -5,9 +5,17 @@ from ..config import settings
 
 class SummarizerService:
     def __init__(self):
-        self.client = None
-        if settings.groq_api_key:
-            self.client = AsyncGroq(api_key=settings.groq_api_key)
+        self._client = None
+        self._initialized = False
+
+    @property
+    def client(self):
+        """Lazy initialization of Groq client."""
+        if not self._initialized:
+            if settings.groq_api_key:
+                self._client = AsyncGroq(api_key=settings.groq_api_key)
+            self._initialized = True
+        return self._client
 
     async def summarize(
         self,
