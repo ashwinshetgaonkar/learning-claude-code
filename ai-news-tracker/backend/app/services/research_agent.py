@@ -188,8 +188,16 @@ class ResearchAgentService:
 
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=3)
-        self.llm = None
-        self._initialize_llm()
+        self._llm = None
+        self._llm_initialized = False
+
+    @property
+    def llm(self):
+        """Lazy initialization of the Groq LLM."""
+        if not self._llm_initialized:
+            self._initialize_llm()
+            self._llm_initialized = True
+        return self._llm
 
     def _initialize_llm(self):
         """Initialize the Groq LLM."""
@@ -202,7 +210,7 @@ class ResearchAgentService:
             return
 
         try:
-            self.llm = ChatGroq(
+            self._llm = ChatGroq(
                 api_key=settings.groq_api_key,
                 model_name="llama-3.1-8b-instant",
                 temperature=0,
