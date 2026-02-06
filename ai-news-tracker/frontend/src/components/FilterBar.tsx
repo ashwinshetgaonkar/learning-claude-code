@@ -7,6 +7,8 @@ interface FilterBarProps {
   onSourceChange: (source: string) => void;
   onCategoryChange: (category: string) => void;
   onDaysChange: (days: number | null) => void;
+  onRefresh?: () => void;
+  isLoading?: boolean;
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -32,6 +34,8 @@ export function FilterBar({
   onSourceChange,
   onCategoryChange,
   onDaysChange,
+  onRefresh,
+  isLoading,
 }: FilterBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-4 py-3 px-4 bg-white border-b border-gray-200">
@@ -74,6 +78,29 @@ export function FilterBar({
           </option>
         ))}
       </select>
+
+      {onRefresh && (
+        <button
+          onClick={onRefresh}
+          disabled={isLoading}
+          className="ml-auto px-4 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+        >
+          <svg
+            className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          {isLoading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      )}
     </div>
   );
 }

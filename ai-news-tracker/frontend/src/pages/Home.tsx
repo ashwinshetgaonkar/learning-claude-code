@@ -30,6 +30,7 @@ export function Home({ onViewDetail, selectedCategory, onCategoryChange }: HomeP
     articles,
     loading,
     error,
+    refresh,
     toggleBookmark,
     generateSummary,
     page,
@@ -57,6 +58,8 @@ export function Home({ onViewDetail, selectedCategory, onCategoryChange }: HomeP
         onSourceChange={setSelectedSource}
         onCategoryChange={onCategoryChange}
         onDaysChange={setSelectedDays}
+        onRefresh={refresh}
+        isLoading={loading}
       />
 
       <main ref={mainRef} className="flex-1 p-4 overflow-y-auto">
