@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     reddit_client_id: str = ""
     reddit_client_secret: str = ""
+    github_token: str = ""
 
     @property
     def cors_origins_list(self) -> List[str]:

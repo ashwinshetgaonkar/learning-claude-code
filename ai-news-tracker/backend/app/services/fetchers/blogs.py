@@ -10,12 +10,12 @@ class BlogFetcher:
     BLOG_SOURCES = {
         "openai": {
             "name": "OpenAI",
-            "rss": "https://openai.com/blog/rss.xml",
+            "rss": "https://openai.com/news/rss.xml",
             "categories": ["AI", "Generative AI", "LLM"],
         },
         "anthropic": {
             "name": "Anthropic",
-            "rss": "https://www.anthropic.com/feed.xml",
+            "url": "https://www.anthropic.com/research",
             "categories": ["AI", "LLM", "AI Safety"],
         },
         "deepmind": {
@@ -33,6 +33,7 @@ class BlogFetcher:
     def __init__(self):
         self.client = httpx.AsyncClient(
             timeout=30.0,
+            follow_redirects=True,
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }

@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -65,48 +67,28 @@ async def refresh_all_sources(
     results = {}
     all_articles = []
 
-    # Fetch from arXiv
-    try:
-        arxiv_fetcher = ArxivFetcher()
-        arxiv_articles = await arxiv_fetcher.fetch(max_results=max_per_source)
-        all_articles.extend(arxiv_articles)
-        results["arxiv"] = {"fetched": len(arxiv_articles), "status": "success"}
-        await arxiv_fetcher.close()
-    except Exception as e:
-        results["arxiv"] = {"fetched": 0, "status": "error", "error": str(e)}
+    async def _fetch_source(name, fetcher_factory, **kwargs):
+        try:
+            fetcher = fetcher_factory(**kwargs)
+            articles = await fetcher.fetch(max_results=max_per_source)
+            await fetcher.close()
+            return name, articles, {"fetched": len(articles), "status": "success"}
+        except Exception as e:
+            return name, [], {"fetched": 0, "status": "error", "error": str(e)}
 
-    # Fetch from HuggingFace
-    try:
-        hf_fetcher = HuggingFaceFetcher()
-        hf_articles = await hf_fetcher.fetch(max_results=max_per_source)
-        all_articles.extend(hf_articles)
-        results["huggingface"] = {"fetched": len(hf_articles), "status": "success"}
-        await hf_fetcher.close()
-    except Exception as e:
-        results["huggingface"] = {"fetched": 0, "status": "error", "error": str(e)}
+    # Fetch all sources in parallel
+    fetch_results = await asyncio.gather(
+        _fetch_source("arxiv", ArxivFetcher),
+        _fetch_source("huggingface", HuggingFaceFetcher),
+        _fetch_source("blogs", BlogFetcher),
+        _fetch_source("aggregators", AggregatorFetcher,
+                      reddit_client_id=settings.reddit_client_id,
+                      reddit_client_secret=settings.reddit_client_secret),
+    )
 
-    # Fetch from blogs
-    try:
-        blog_fetcher = BlogFetcher()
-        blog_articles = await blog_fetcher.fetch(max_results=max_per_source)
-        all_articles.extend(blog_articles)
-        results["blogs"] = {"fetched": len(blog_articles), "status": "success"}
-        await blog_fetcher.close()
-    except Exception as e:
-        results["blogs"] = {"fetched": 0, "status": "error", "error": str(e)}
-
-    # Fetch from aggregators
-    try:
-        agg_fetcher = AggregatorFetcher(
-            reddit_client_id=settings.reddit_client_id,
-            reddit_client_secret=settings.reddit_client_secret,
-        )
-        agg_articles = await agg_fetcher.fetch(max_results=max_per_source)
-        all_articles.extend(agg_articles)
-        results["aggregators"] = {"fetched": len(agg_articles), "status": "success"}
-        await agg_fetcher.close()
-    except Exception as e:
-        results["aggregators"] = {"fetched": 0, "status": "error", "error": str(e)}
+    for name, articles, result in fetch_results:
+        results[name] = result
+        all_articles.extend(articles)
 
     # Deduplicate
     unique_articles = deduplicate_articles(all_articles)

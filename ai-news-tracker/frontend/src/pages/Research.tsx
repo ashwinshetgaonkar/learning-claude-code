@@ -38,6 +38,52 @@ interface YouTubeVideo {
   error?: string;
 }
 
+interface SemanticScholarPaper {
+  title: string;
+  authors: string[];
+  abstract: string;
+  url: string;
+  year: number | null;
+  citation_count: number;
+  error?: string;
+}
+
+interface HuggingFaceModel {
+  model_id: string;
+  author: string;
+  downloads: number;
+  likes: number;
+  tags: string[];
+  url: string;
+  error?: string;
+}
+
+interface GitHubRepo {
+  name: string;
+  full_name: string;
+  description: string;
+  url: string;
+  stars: number;
+  language: string | null;
+  topics: string[];
+  error?: string;
+}
+
+interface PapersWithCodeResult {
+  title: string;
+  abstract: string;
+  url: string;
+  repository_url?: string | null;
+  error?: string;
+}
+
+interface AnthropicArticle {
+  title: string;
+  description: string;
+  url: string;
+  error?: string;
+}
+
 interface SearchResult {
   query: string;
   response?: string;
@@ -46,6 +92,11 @@ interface SearchResult {
     wikipedia?: WikiArticle[];
     tavily?: TavilyResult | null;
     youtube?: YouTubeVideo[];
+    semantic_scholar?: SemanticScholarPaper[];
+    huggingface?: HuggingFaceModel[];
+    github?: GitHubRepo[];
+    papers_with_code?: PapersWithCodeResult[];
+    anthropic?: AnthropicArticle[];
   };
   success: boolean;
 }
@@ -116,7 +167,7 @@ export default function Research() {
     <div className="flex-1 p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-2">Research Agent</h1>
       <p className="text-gray-600 mb-6">
-        AI-powered research assistant using Groq LLM to search arXiv, Wikipedia, and the web.
+        AI-powered research assistant using Groq LLM to search arXiv, Semantic Scholar, Wikipedia, HuggingFace, GitHub, and more.
       </p>
 
       {/* LLM Status */}
@@ -286,6 +337,66 @@ export default function Research() {
                     YouTube ({results.sources.youtube.length})
                   </button>
                 )}
+                {results.sources.semantic_scholar && results.sources.semantic_scholar.length > 0 && !results.sources.semantic_scholar[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('semantic_scholar')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'semantic_scholar'
+                        ? 'bg-purple-100 text-purple-700 border-b-2 border-purple-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Semantic Scholar ({results.sources.semantic_scholar.length})
+                  </button>
+                )}
+                {results.sources.huggingface && results.sources.huggingface.length > 0 && !results.sources.huggingface[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('huggingface')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'huggingface'
+                        ? 'bg-yellow-100 text-yellow-700 border-b-2 border-yellow-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    HuggingFace ({results.sources.huggingface.length})
+                  </button>
+                )}
+                {results.sources.github && results.sources.github.length > 0 && !results.sources.github[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('github')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'github'
+                        ? 'bg-slate-200 text-slate-700 border-b-2 border-slate-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    GitHub ({results.sources.github.length})
+                  </button>
+                )}
+                {results.sources.papers_with_code && results.sources.papers_with_code.length > 0 && !results.sources.papers_with_code[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('papers_with_code')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'papers_with_code'
+                        ? 'bg-teal-100 text-teal-700 border-b-2 border-teal-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Papers With Code ({results.sources.papers_with_code.length})
+                  </button>
+                )}
+                {results.sources.anthropic && results.sources.anthropic.length > 0 && !results.sources.anthropic[0]?.error && (
+                  <button
+                    onClick={() => setActiveResultTab('anthropic')}
+                    className={`px-3 py-1.5 rounded-t text-sm font-medium transition-colors ${
+                      activeResultTab === 'anthropic'
+                        ? 'bg-amber-100 text-amber-700 border-b-2 border-amber-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Anthropic ({results.sources.anthropic.length})
+                  </button>
+                )}
               </div>
 
               {/* Tab Content */}
@@ -404,6 +515,152 @@ export default function Research() {
                     </div>
                   </div>
                 )}
+
+                {/* Semantic Scholar Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'semantic_scholar') &&
+                 results.sources.semantic_scholar && results.sources.semantic_scholar.length > 0 && !results.sources.semantic_scholar[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm">Semantic Scholar</span>
+                      Papers
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.semantic_scholar.map((paper, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded border">
+                            <a href={paper.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                              {paper.title}
+                            </a>
+                            <div className="flex gap-3 text-sm text-gray-500 mt-1">
+                              {paper.authors?.length > 0 && <span>{paper.authors.join(', ')}</span>}
+                              {paper.year && <span>({paper.year})</span>}
+                              <span>{paper.citation_count} citations</span>
+                            </div>
+                            {paper.abstract && <p className="text-sm text-gray-700 mt-2">{paper.abstract}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* HuggingFace Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'huggingface') &&
+                 results.sources.huggingface && results.sources.huggingface.length > 0 && !results.sources.huggingface[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm">HuggingFace</span>
+                      Models
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.huggingface.map((model, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded border">
+                            <a href={model.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium font-mono text-sm">
+                              {model.model_id}
+                            </a>
+                            <div className="flex gap-4 text-sm text-gray-500 mt-1">
+                              <span>{model.downloads.toLocaleString()} downloads</span>
+                              <span>{model.likes} likes</span>
+                            </div>
+                            {model.tags.length > 0 && (
+                              <div className="flex gap-1 flex-wrap mt-2">
+                                {model.tags.map((tag, i) => (
+                                  <span key={i} className="px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded text-xs">{tag}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* GitHub Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'github') &&
+                 results.sources.github && results.sources.github.length > 0 && !results.sources.github[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-sm">GitHub</span>
+                      Repositories
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.github.map((repo, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded border">
+                            <a href={repo.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium font-mono text-sm">
+                              {repo.full_name}
+                            </a>
+                            <div className="flex gap-3 text-sm text-gray-500 mt-1">
+                              <span>{repo.stars.toLocaleString()} stars</span>
+                              {repo.language && <span>{repo.language}</span>}
+                            </div>
+                            {repo.description && <p className="text-sm text-gray-700 mt-2">{repo.description}</p>}
+                            {repo.topics.length > 0 && (
+                              <div className="flex gap-1 flex-wrap mt-2">
+                                {repo.topics.map((topic, i) => (
+                                  <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs">{topic}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Papers With Code Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'papers_with_code') &&
+                 results.sources.papers_with_code && results.sources.papers_with_code.length > 0 && !results.sources.papers_with_code[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-teal-100 text-teal-700 rounded text-sm">Papers With Code</span>
+                      Papers & Implementations
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.papers_with_code.map((paper, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded border">
+                            <a href={paper.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                              {paper.title}
+                            </a>
+                            {paper.abstract && <p className="text-sm text-gray-700 mt-2">{paper.abstract}</p>}
+                            {paper.repository_url && (
+                              <a href={paper.repository_url} target="_blank" rel="noopener noreferrer" className="text-xs text-teal-600 hover:underline mt-2 inline-block">
+                                View Code
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Anthropic Results */}
+                {(activeResultTab === 'all' || activeResultTab === 'anthropic') &&
+                 results.sources.anthropic && results.sources.anthropic.length > 0 && !results.sources.anthropic[0]?.error && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-sm">Anthropic</span>
+                      Research Articles
+                    </h3>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-4">
+                        {results.sources.anthropic.map((article, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded border">
+                            <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                              {article.title}
+                            </a>
+                            {article.description && <p className="text-sm text-gray-700 mt-2">{article.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -417,7 +674,7 @@ export default function Research() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <p className="mt-4">Enter a research query to search across multiple sources</p>
-          <p className="text-sm mt-2">The AI agent will search arXiv, Wikipedia, and the web to find relevant information</p>
+          <p className="text-sm mt-2">The AI agent will search arXiv, Semantic Scholar, Wikipedia, HuggingFace, GitHub, and more</p>
         </div>
       )}
     </div>

@@ -8,6 +8,11 @@ synthesize a response. Tools available:
 - Wikipedia: General knowledge
 - Tavily: Web search
 - YouTube: Video search
+- Semantic Scholar: Papers with citation data
+- HuggingFace: ML models
+- GitHub: Repositories
+- Papers With Code: Papers with implementations
+- Anthropic: Research articles
 """
 
 import asyncio
@@ -17,6 +22,8 @@ from typing import Optional, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
+import httpx
+from bs4 import BeautifulSoup
 from groq import AsyncGroq
 from ..config import settings
 
@@ -179,6 +186,177 @@ def _search_youtube(query: str, max_results: int = 5) -> List[Dict]:
         return [{"error": str(e)}]
 
 
+def _search_semantic_scholar(query: str, max_results: int = 5) -> List[Dict]:
+    """Search Semantic Scholar for academic papers with citation data."""
+    try:
+        resp = httpx.get(
+            "https://api.semanticscholar.org/graph/v1/paper/search",
+            params={
+                "query": query,
+                "limit": max_results,
+                "fields": "paperId,title,year,citationCount,url,abstract,authors",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = []
+        for paper in data.get("data", []):
+            authors = [a.get("name", "") for a in (paper.get("authors") or [])[:3]]
+            abstract = paper.get("abstract") or ""
+            results.append({
+                "title": paper.get("title", ""),
+                "authors": authors,
+                "abstract": abstract[:500] + "..." if len(abstract) > 500 else abstract,
+                "url": paper.get("url") or f"https://www.semanticscholar.org/paper/{paper.get('paperId', '')}",
+                "year": paper.get("year"),
+                "citation_count": paper.get("citationCount", 0),
+            })
+        return results
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _search_huggingface(query: str, max_results: int = 5) -> List[Dict]:
+    """Search HuggingFace Hub for models."""
+    try:
+        resp = httpx.get(
+            "https://huggingface.co/api/models",
+            params={
+                "search": query,
+                "sort": "downloads",
+                "direction": "-1",
+                "limit": max_results,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        models = resp.json()
+        results = []
+        for model in models[:max_results]:
+            model_id = model.get("modelId", model.get("id", ""))
+            results.append({
+                "model_id": model_id,
+                "author": model_id.split("/")[0] if "/" in model_id else "",
+                "downloads": model.get("downloads", 0),
+                "likes": model.get("likes", 0),
+                "tags": model.get("tags", [])[:5],
+                "url": f"https://huggingface.co/{model_id}",
+            })
+        return results
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _search_github(query: str, max_results: int = 5) -> List[Dict]:
+    """Search GitHub for repositories related to AI/ML."""
+    try:
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        if settings.github_token:
+            headers["Authorization"] = f"token {settings.github_token}"
+        resp = httpx.get(
+            "https://api.github.com/search/repositories",
+            params={
+                "q": f"{query} topic:machine-learning",
+                "sort": "stars",
+                "per_page": max_results,
+            },
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = []
+        for repo in data.get("items", [])[:max_results]:
+            results.append({
+                "name": repo.get("name", ""),
+                "full_name": repo.get("full_name", ""),
+                "description": (repo.get("description") or "")[:300],
+                "url": repo.get("html_url", ""),
+                "stars": repo.get("stargazers_count", 0),
+                "language": repo.get("language"),
+                "topics": repo.get("topics", [])[:5],
+            })
+        return results
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _search_papers_with_code(query: str, max_results: int = 5) -> List[Dict]:
+    """Search HuggingFace papers (formerly Papers With Code) for trending research."""
+    try:
+        resp = httpx.get(
+            "https://huggingface.co/api/daily_papers",
+            params={"limit": 50},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        papers = resp.json()
+        query_terms = query.lower().split()
+        results = []
+        for item in papers:
+            paper = item.get("paper", {})
+            title = paper.get("title", "")
+            summary = paper.get("summary", "")
+            text = f"{title} {summary}".lower()
+            if any(term in text for term in query_terms):
+                authors = [a.get("name", "") for a in paper.get("authors", [])[:3]]
+                results.append({
+                    "title": title,
+                    "abstract": summary[:500] + "..." if len(summary) > 500 else summary,
+                    "url": f"https://huggingface.co/papers/{paper.get('id', '')}",
+                    "repository_url": None,
+                })
+            if len(results) >= max_results:
+                break
+        return results
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _search_anthropic(query: str, max_results: int = 5) -> List[Dict]:
+    """Search Anthropic's research page for articles."""
+    try:
+        resp = httpx.get(
+            "https://www.anthropic.com/research",
+            headers={"User-Agent": "AI-News-Tracker/1.0"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        query_terms = query.lower().split()
+        results = []
+        for link in soup.find_all("a", href=True):
+            title_el = link.find(["h2", "h3", "h4", "span"])
+            if not title_el:
+                continue
+            title = title_el.get_text(strip=True)
+            if not title or len(title) < 10:
+                continue
+            desc_el = link.find("p")
+            description = desc_el.get_text(strip=True) if desc_el else ""
+            text = f"{title} {description}".lower()
+            if any(term in text for term in query_terms):
+                href = link["href"]
+                if not href.startswith("http"):
+                    href = f"https://www.anthropic.com{href}"
+                results.append({
+                    "title": title,
+                    "description": description[:300],
+                    "url": href,
+                })
+        # Deduplicate by URL
+        seen = set()
+        unique = []
+        for r in results:
+            if r["url"] not in seen:
+                seen.add(r["url"])
+                unique.append(r)
+        return unique[:max_results]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
 # ---------- Tool schemas for Groq function calling ----------
 
 TOOL_SCHEMAS = [
@@ -266,6 +444,111 @@ TOOL_SCHEMAS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_semantic_scholar",
+            "description": "Search Semantic Scholar for academic papers with citation counts. Use for finding highly-cited or recent research papers.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for Semantic Scholar."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of papers to return (1-10, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_huggingface",
+            "description": "Search HuggingFace Hub for ML models. Use when looking for pre-trained models, fine-tuned models, or model architectures.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for HuggingFace models."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of models to return (1-10, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_github",
+            "description": "Search GitHub for ML/AI repositories. Use for finding open-source implementations, libraries, and tools.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for GitHub repositories."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of repos to return (1-10, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_papers_with_code",
+            "description": "Search Papers With Code for papers that have code implementations. Use when looking for reproducible research with code.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for Papers With Code."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (1-10, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_anthropic",
+            "description": "Search Anthropic's research page for articles about Claude, constitutional AI, and AI safety. Use for Anthropic-specific research.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for Anthropic research."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of articles to return (1-5, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
 ]
 
 # Map tool names to functions
@@ -274,6 +557,11 @@ TOOL_FUNCTIONS = {
     "search_wikipedia": _search_wikipedia,
     "search_web": _search_tavily,
     "search_youtube": _search_youtube,
+    "search_semantic_scholar": _search_semantic_scholar,
+    "search_huggingface": _search_huggingface,
+    "search_github": _search_github,
+    "search_papers_with_code": _search_papers_with_code,
+    "search_anthropic": _search_anthropic,
 }
 
 # Map tool names to source keys expected by the frontend
@@ -282,6 +570,11 @@ TOOL_TO_SOURCE_KEY = {
     "search_wikipedia": "wikipedia",
     "search_web": "tavily",
     "search_youtube": "youtube",
+    "search_semantic_scholar": "semantic_scholar",
+    "search_huggingface": "huggingface",
+    "search_github": "github",
+    "search_papers_with_code": "papers_with_code",
+    "search_anthropic": "anthropic",
 }
 
 MAX_ITERATIONS = 5
@@ -289,8 +582,9 @@ MODEL = "llama-3.1-8b-instant"
 
 SYSTEM_PROMPT = (
     "You are a research assistant specializing in AI and machine learning. "
-    "You have access to tools for searching academic papers (arXiv), Wikipedia, "
-    "the web (Tavily), and YouTube. Use the most relevant tools to find information "
+    "You have access to tools for searching academic papers (arXiv, Semantic Scholar, Papers With Code), "
+    "Wikipedia, the web (Tavily), YouTube, HuggingFace models, GitHub repositories, "
+    "and Anthropic research articles. Use the most relevant tools to find information "
     "about the user's query. You can call multiple tools and refine your searches. "
     "After gathering enough information, provide a comprehensive 2-3 paragraph summary "
     "that synthesizes findings and cites which sources the information comes from."
@@ -318,24 +612,24 @@ class ResearchAgentService:
 
     def _get_available_tools(self) -> tuple:
         """Return (tool_schemas, func_map) for currently available tools."""
+        # Tools that require availability checks
+        skip = set()
+        if not ARXIV_AVAILABLE:
+            skip.add("search_arxiv")
+        if not WIKIPEDIA_AVAILABLE:
+            skip.add("search_wikipedia")
+        if not (TAVILY_AVAILABLE and settings.tavily_api_key):
+            skip.add("search_web")
+        if not (YOUTUBE_AVAILABLE and settings.youtube_api_key):
+            skip.add("search_youtube")
+
         tools = []
         func_map = {}
-
-        if ARXIV_AVAILABLE:
-            tools.append(TOOL_SCHEMAS[0])
-            func_map["search_arxiv"] = _search_arxiv
-
-        if WIKIPEDIA_AVAILABLE:
-            tools.append(TOOL_SCHEMAS[1])
-            func_map["search_wikipedia"] = _search_wikipedia
-
-        if TAVILY_AVAILABLE and settings.tavily_api_key:
-            tools.append(TOOL_SCHEMAS[2])
-            func_map["search_web"] = _search_tavily
-
-        if YOUTUBE_AVAILABLE and settings.youtube_api_key:
-            tools.append(TOOL_SCHEMAS[3])
-            func_map["search_youtube"] = _search_youtube
+        for schema in TOOL_SCHEMAS:
+            name = schema["function"]["name"]
+            if name not in skip and name in TOOL_FUNCTIONS:
+                tools.append(schema)
+                func_map[name] = TOOL_FUNCTIONS[name]
 
         return tools, func_map
 
@@ -362,7 +656,9 @@ class ResearchAgentService:
 
         # Collected source results across all iterations
         all_sources: Dict[str, Any] = {
-            "arxiv": [], "wikipedia": [], "tavily": None, "youtube": []
+            "arxiv": [], "wikipedia": [], "tavily": None, "youtube": [],
+            "semantic_scholar": [], "huggingface": [], "github": [],
+            "papers_with_code": [], "anthropic": [],
         }
 
         messages = [
@@ -469,43 +765,48 @@ class ResearchAgentService:
         loop = asyncio.get_event_loop()
         enhanced_query = _add_ai_ml_context(query)
 
-        # Run all searches concurrently
-        arxiv_task = loop.run_in_executor(self.executor, _search_arxiv, enhanced_query)
-        wiki_task = loop.run_in_executor(self.executor, _search_wikipedia, enhanced_query)
+        tasks = []
+        task_names = []
 
-        tasks = [arxiv_task, wiki_task]
-        task_names = ['arxiv', 'wiki']
+        # Always-available sources
+        tasks.append(loop.run_in_executor(self.executor, _search_arxiv, enhanced_query))
+        task_names.append("arxiv")
+        tasks.append(loop.run_in_executor(self.executor, _search_wikipedia, enhanced_query))
+        task_names.append("wikipedia")
+        tasks.append(loop.run_in_executor(self.executor, _search_semantic_scholar, enhanced_query))
+        task_names.append("semantic_scholar")
+        tasks.append(loop.run_in_executor(self.executor, _search_huggingface, enhanced_query))
+        task_names.append("huggingface")
+        tasks.append(loop.run_in_executor(self.executor, _search_github, enhanced_query))
+        task_names.append("github")
+        tasks.append(loop.run_in_executor(self.executor, _search_papers_with_code, enhanced_query))
+        task_names.append("papers_with_code")
+        tasks.append(loop.run_in_executor(self.executor, _search_anthropic, query))
+        task_names.append("anthropic")
 
+        # Optional sources (need API keys)
         if settings.tavily_api_key:
-            tavily_task = loop.run_in_executor(self.executor, _search_tavily, enhanced_query)
-            tasks.append(tavily_task)
-            task_names.append('tavily')
-
+            tasks.append(loop.run_in_executor(self.executor, _search_tavily, enhanced_query))
+            task_names.append("tavily")
         if settings.youtube_api_key:
             youtube_query = _add_ai_ml_context(query, "youtube")
-            youtube_task = loop.run_in_executor(self.executor, _search_youtube, youtube_query)
-            tasks.append(youtube_task)
-            task_names.append('youtube')
+            tasks.append(loop.run_in_executor(self.executor, _search_youtube, youtube_query))
+            task_names.append("youtube")
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        arxiv_results = results[0] if not isinstance(results[0], Exception) else []
-        wiki_results = results[1] if not isinstance(results[1], Exception) else []
-
-        tavily_idx = task_names.index('tavily') if 'tavily' in task_names else -1
-        youtube_idx = task_names.index('youtube') if 'youtube' in task_names else -1
-
-        tavily_results = results[tavily_idx] if tavily_idx >= 0 and not isinstance(results[tavily_idx], Exception) else None
-        youtube_results = results[youtube_idx] if youtube_idx >= 0 and not isinstance(results[youtube_idx], Exception) else None
+        sources = {
+            "arxiv": [], "wikipedia": [], "tavily": None, "youtube": [],
+            "semantic_scholar": [], "huggingface": [], "github": [],
+            "papers_with_code": [], "anthropic": [],
+        }
+        for name, result in zip(task_names, results):
+            if not isinstance(result, Exception):
+                sources[name] = result
 
         return {
             "query": query,
-            "sources": {
-                "arxiv": arxiv_results,
-                "wikipedia": wiki_results,
-                "tavily": tavily_results,
-                "youtube": youtube_results,
-            },
+            "sources": sources,
             "success": True,
         }
 
@@ -525,6 +826,16 @@ class ResearchAgentService:
         elif source == "youtube":
             youtube_query = _add_ai_ml_context(query, "youtube")
             results = await loop.run_in_executor(self.executor, _search_youtube, youtube_query)
+        elif source == "semantic_scholar":
+            results = await loop.run_in_executor(self.executor, _search_semantic_scholar, enhanced_query)
+        elif source == "huggingface":
+            results = await loop.run_in_executor(self.executor, _search_huggingface, enhanced_query)
+        elif source == "github":
+            results = await loop.run_in_executor(self.executor, _search_github, enhanced_query)
+        elif source == "papers_with_code":
+            results = await loop.run_in_executor(self.executor, _search_papers_with_code, enhanced_query)
+        elif source == "anthropic":
+            results = await loop.run_in_executor(self.executor, _search_anthropic, query)
         else:
             return {"error": f"Unknown source: {source}"}
 

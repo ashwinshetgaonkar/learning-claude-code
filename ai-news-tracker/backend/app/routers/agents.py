@@ -41,7 +41,7 @@ async def search_research(
     """
     if source:
         # Search specific source
-        valid_sources = {"arxiv", "wikipedia", "tavily", "youtube"}
+        valid_sources = {"arxiv", "wikipedia", "tavily", "youtube", "semantic_scholar", "huggingface", "github", "papers_with_code", "anthropic"}
         if source.lower() not in valid_sources:
             raise HTTPException(
                 status_code=400,
@@ -85,6 +85,36 @@ async def list_sources():
                 "description": "Educational videos and tutorials from YouTube",
                 "available": bool(settings.youtube_api_key),
                 "requires_api_key": True,
+            },
+            {
+                "name": "semantic_scholar",
+                "description": "Academic papers with citation data from Semantic Scholar",
+                "available": True,
+                "requires_api_key": False,
+            },
+            {
+                "name": "huggingface",
+                "description": "ML models from HuggingFace Hub",
+                "available": True,
+                "requires_api_key": False,
+            },
+            {
+                "name": "github",
+                "description": "AI/ML repositories from GitHub",
+                "available": True,
+                "requires_api_key": False,
+            },
+            {
+                "name": "papers_with_code",
+                "description": "Papers with code implementations from Papers With Code",
+                "available": True,
+                "requires_api_key": False,
+            },
+            {
+                "name": "anthropic",
+                "description": "Research articles from Anthropic",
+                "available": True,
+                "requires_api_key": False,
             },
         ],
         "llm": {

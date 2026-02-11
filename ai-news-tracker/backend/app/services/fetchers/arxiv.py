@@ -6,11 +6,11 @@ import asyncio
 
 
 class ArxivFetcher:
-    BASE_URL = "http://export.arxiv.org/api/query"
+    BASE_URL = "https://export.arxiv.org/api/query"
     CATEGORIES = ["cs.AI", "cs.LG", "cs.CL", "cs.CV", "cs.NE"]
 
     def __init__(self):
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
 
     async def fetch(self, max_results: int = 50) -> List[Dict[str, Any]]:
         """Fetch recent AI papers from arXiv."""
