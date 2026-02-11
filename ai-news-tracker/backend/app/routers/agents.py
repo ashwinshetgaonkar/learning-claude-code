@@ -1,8 +1,9 @@
 """
 Research Agents API Router
 
-Provides endpoints for searching research data using LangChain agent
-with Groq LLM orchestrating multiple tools (arXiv, Wikipedia, Tavily).
+Provides endpoints for searching research data using an agentic tool-use
+loop with Groq LLM. The LLM decides which tools to call (arXiv, Wikipedia,
+Tavily, YouTube), executes them, and iterates until it can synthesize a response.
 """
 
 from fastapi import APIRouter, Query, HTTPException

@@ -1,31 +1,26 @@
 """
-Research Agent Service using LangChain with Groq LLM
+Research Agent Service using Groq Agentic Tool-Use Loop
 
-Uses the same Groq LLM as the summarizer to orchestrate research tools:
+Uses an agentic loop where the LLM decides which tools to call,
+executes them, and iterates until it has enough information to
+synthesize a response. Tools available:
 - arXiv: Academic papers
 - Wikipedia: General knowledge
 - Tavily: Web search
+- YouTube: Video search
 """
 
 import asyncio
+import json
 import sys
 from typing import Optional, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
+from groq import AsyncGroq
 from ..config import settings
 
-# Import optional dependencies with fallback
-try:
-    from langchain_groq import ChatGroq
-    from langchain_core.messages import HumanMessage, SystemMessage
-    LANGCHAIN_AVAILABLE = True
-except ImportError as e:
-    print(f"Warning: LangChain not available: {e}", file=sys.stderr)
-    LANGCHAIN_AVAILABLE = False
-    ChatGroq = None
-    HumanMessage = None
-    SystemMessage = None
-
+# Import optional tool dependencies with fallback
 try:
     import arxiv
     ARXIV_AVAILABLE = True
@@ -70,7 +65,8 @@ def _add_ai_ml_context(query: str, source: str = "general") -> str:
     return f"{query} {AI_ML_CONTEXT}"
 
 
-# Define tools as simple functions
+# ---------- Tool functions (unchanged) ----------
+
 def _search_arxiv(query: str, max_results: int = 5) -> List[Dict]:
     """Search arXiv for academic papers."""
     if not ARXIV_AVAILABLE:
@@ -183,48 +179,294 @@ def _search_youtube(query: str, max_results: int = 5) -> List[Dict]:
         return [{"error": str(e)}]
 
 
+# ---------- Tool schemas for Groq function calling ----------
+
+TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_arxiv",
+            "description": "Search arXiv for academic papers and preprints about AI, machine learning, and related topics. Use for research, algorithms, models, or technical concepts.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for arXiv. Include relevant technical terms."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of papers to return (1-10, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_wikipedia",
+            "description": "Search Wikipedia for general knowledge articles. Use for background information, definitions, history, or broader context.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for Wikipedia."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of articles to return (1-5, default 3)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": "Search the web for recent news, blog posts, tutorials, and general content. Use for current events, recent developments, or practical information.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Web search query."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (1-10, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_youtube",
+            "description": "Search YouTube for educational videos, tutorials, and presentations. Use when visual explanations or conference talks would be helpful.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "YouTube search query. Include terms like 'tutorial', 'explained' for better results."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of videos to return (1-10, default 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+]
+
+# Map tool names to functions
+TOOL_FUNCTIONS = {
+    "search_arxiv": _search_arxiv,
+    "search_wikipedia": _search_wikipedia,
+    "search_web": _search_tavily,
+    "search_youtube": _search_youtube,
+}
+
+# Map tool names to source keys expected by the frontend
+TOOL_TO_SOURCE_KEY = {
+    "search_arxiv": "arxiv",
+    "search_wikipedia": "wikipedia",
+    "search_web": "tavily",
+    "search_youtube": "youtube",
+}
+
+MAX_ITERATIONS = 5
+MODEL = "llama-3.1-8b-instant"
+
+SYSTEM_PROMPT = (
+    "You are a research assistant specializing in AI and machine learning. "
+    "You have access to tools for searching academic papers (arXiv), Wikipedia, "
+    "the web (Tavily), and YouTube. Use the most relevant tools to find information "
+    "about the user's query. You can call multiple tools and refine your searches. "
+    "After gathering enough information, provide a comprehensive 2-3 paragraph summary "
+    "that synthesizes findings and cites which sources the information comes from."
+)
+
+
 class ResearchAgentService:
-    """Service for searching research data using Groq LLM."""
+    """Service for searching research data using a Groq agentic tool-use loop."""
 
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=3)
-        self._llm = None
-        self._llm_initialized = False
+        self._client = None
+        self._initialized = False
 
     @property
-    def llm(self):
-        """Lazy initialization of the Groq LLM."""
-        if not self._llm_initialized:
-            self._initialize_llm()
-            self._llm_initialized = True
-        return self._llm
+    def client(self):
+        """Lazy initialization of Groq client."""
+        if not self._initialized:
+            if settings.groq_api_key:
+                self._client = AsyncGroq(api_key=settings.groq_api_key)
+            else:
+                print("Warning: GROQ_API_KEY not configured. Research agent will use fallback mode.", file=sys.stderr)
+            self._initialized = True
+        return self._client
 
-    def _initialize_llm(self):
-        """Initialize the Groq LLM."""
-        if not LANGCHAIN_AVAILABLE:
-            print("Warning: LangChain not available. Research agent will use fallback mode.", file=sys.stderr)
-            return
+    def _get_available_tools(self) -> tuple:
+        """Return (tool_schemas, func_map) for currently available tools."""
+        tools = []
+        func_map = {}
 
-        if not settings.groq_api_key:
-            print("Warning: GROQ_API_KEY not configured. Research agent will use fallback mode.", file=sys.stderr)
-            return
+        if ARXIV_AVAILABLE:
+            tools.append(TOOL_SCHEMAS[0])
+            func_map["search_arxiv"] = _search_arxiv
 
-        try:
-            self._llm = ChatGroq(
-                api_key=settings.groq_api_key,
-                model_name="llama-3.1-8b-instant",
-                temperature=0,
-            )
-        except Exception as e:
-            print(f"Error initializing Groq LLM: {e}", file=sys.stderr)
+        if WIKIPEDIA_AVAILABLE:
+            tools.append(TOOL_SCHEMAS[1])
+            func_map["search_wikipedia"] = _search_wikipedia
+
+        if TAVILY_AVAILABLE and settings.tavily_api_key:
+            tools.append(TOOL_SCHEMAS[2])
+            func_map["search_web"] = _search_tavily
+
+        if YOUTUBE_AVAILABLE and settings.youtube_api_key:
+            tools.append(TOOL_SCHEMAS[3])
+            func_map["search_youtube"] = _search_youtube
+
+        return tools, func_map
+
+    def _collect_source(self, all_sources: Dict, fn_name: str, result: Any):
+        """Map tool results into the sources dict the frontend expects."""
+        key = TOOL_TO_SOURCE_KEY.get(fn_name)
+        if key:
+            all_sources[key] = result
 
     async def search(self, query: str) -> Dict[str, Any]:
         """
-        Search across multiple sources and use LLM to synthesize results.
+        Search using an agentic tool-use loop.
+
+        The LLM decides which tools to call, executes them, reads the results,
+        and iterates until it has enough information to provide a synthesis.
+        Falls back to parallel search if no Groq API key is configured.
         """
+        if not self.client:
+            return await self._fallback_search(query)
+
+        tools, func_map = self._get_available_tools()
+        if not tools:
+            return await self._fallback_search(query)
+
+        # Collected source results across all iterations
+        all_sources: Dict[str, Any] = {
+            "arxiv": [], "wikipedia": [], "tavily": None, "youtube": []
+        }
+
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Research the following topic in the context of AI and machine learning: {query}"},
+        ]
+
         loop = asyncio.get_event_loop()
 
-        # Add AI/ML context for more relevant results
+        for _ in range(MAX_ITERATIONS):
+            try:
+                response = await self.client.chat.completions.create(
+                    model=MODEL,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=0,
+                    max_tokens=1024,
+                )
+            except Exception as e:
+                print(f"Groq API error: {e}", file=sys.stderr)
+                return await self._fallback_search(query)
+
+            msg = response.choices[0].message
+
+            # No tool calls — LLM returned its final text response
+            if not msg.tool_calls:
+                return {
+                    "query": query,
+                    "response": msg.content,
+                    "sources": all_sources,
+                    "success": True,
+                }
+
+            # Append assistant message (with tool_calls) to conversation
+            messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ],
+            })
+
+            # Execute each tool call
+            for tool_call in msg.tool_calls:
+                fn_name = tool_call.function.name
+
+                try:
+                    fn_args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    fn_args = {"query": query}
+
+                if fn_name in func_map:
+                    result = await loop.run_in_executor(
+                        self.executor,
+                        partial(func_map[fn_name], **fn_args),
+                    )
+                    self._collect_source(all_sources, fn_name, result)
+                else:
+                    result = {"error": f"Unknown tool: {fn_name}"}
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result, default=str),
+                })
+
+        # Exhausted iterations — force a final synthesis
+        messages.append({
+            "role": "user",
+            "content": "Please provide your final summary now based on all the information gathered.",
+        })
+        try:
+            final = await self.client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                temperature=0,
+                max_tokens=1024,
+            )
+            return {
+                "query": query,
+                "response": final.choices[0].message.content,
+                "sources": all_sources,
+                "success": True,
+            }
+        except Exception as e:
+            print(f"Groq API error on final synthesis: {e}", file=sys.stderr)
+            return {
+                "query": query,
+                "sources": all_sources,
+                "success": True,
+            }
+
+    async def _fallback_search(self, query: str) -> Dict[str, Any]:
+        """Run all available tools in parallel without LLM synthesis."""
+        loop = asyncio.get_event_loop()
         enhanced_query = _add_ai_ml_context(query)
 
         # Run all searches concurrently
@@ -240,8 +482,8 @@ class ResearchAgentService:
             task_names.append('tavily')
 
         if settings.youtube_api_key:
-            youtube_enhanced_query = _add_ai_ml_context(query, "youtube")
-            youtube_task = loop.run_in_executor(self.executor, _search_youtube, youtube_enhanced_query)
+            youtube_query = _add_ai_ml_context(query, "youtube")
+            youtube_task = loop.run_in_executor(self.executor, _search_youtube, youtube_query)
             tasks.append(youtube_task)
             task_names.append('youtube')
 
@@ -256,25 +498,6 @@ class ResearchAgentService:
         tavily_results = results[tavily_idx] if tavily_idx >= 0 and not isinstance(results[tavily_idx], Exception) else None
         youtube_results = results[youtube_idx] if youtube_idx >= 0 and not isinstance(results[youtube_idx], Exception) else None
 
-        # Use LLM to synthesize if available
-        if self.llm:
-            try:
-                synthesis = await self._synthesize_results(query, arxiv_results, wiki_results, tavily_results, youtube_results)
-                return {
-                    "query": query,
-                    "response": synthesis,
-                    "sources": {
-                        "arxiv": arxiv_results,
-                        "wikipedia": wiki_results,
-                        "tavily": tavily_results,
-                        "youtube": youtube_results,
-                    },
-                    "success": True,
-                }
-            except Exception as e:
-                print(f"LLM synthesis error: {e}")
-
-        # Fallback: return raw results
         return {
             "query": query,
             "sources": {
@@ -285,71 +508,6 @@ class ResearchAgentService:
             },
             "success": True,
         }
-
-    async def _synthesize_results(
-        self,
-        query: str,
-        arxiv_results: List[Dict],
-        wiki_results: List[Dict],
-        tavily_results: Optional[Dict],
-        youtube_results: Optional[List[Dict]] = None
-    ) -> str:
-        """Use LLM to synthesize search results into a coherent response."""
-
-        # Build context from results
-        context_parts = []
-
-        if arxiv_results and not any("error" in r for r in arxiv_results):
-            arxiv_text = "\n".join([
-                f"- {r['title']} by {', '.join(r.get('authors', []))}: {r.get('abstract', '')[:200]}"
-                for r in arxiv_results[:3]
-            ])
-            context_parts.append(f"**Academic Papers (arXiv):**\n{arxiv_text}")
-
-        if wiki_results and not any("error" in r for r in wiki_results):
-            wiki_text = "\n".join([
-                f"- {r['title']}: {r.get('summary', '')[:200]}"
-                for r in wiki_results[:3]
-            ])
-            context_parts.append(f"**Wikipedia:**\n{wiki_text}")
-
-        if tavily_results and "error" not in tavily_results:
-            if tavily_results.get("answer"):
-                context_parts.append(f"**Web Search Answer:**\n{tavily_results['answer']}")
-            if tavily_results.get("results"):
-                web_text = "\n".join([
-                    f"- {r['title']}: {r.get('content', '')[:150]}"
-                    for r in tavily_results["results"][:3]
-                ])
-                context_parts.append(f"**Web Results:**\n{web_text}")
-
-        if youtube_results and not any("error" in r for r in youtube_results):
-            youtube_text = "\n".join([
-                f"- {r['title']} by {r['channel']}: {r.get('description', '')[:100]}"
-                for r in youtube_results[:3]
-            ])
-            context_parts.append(f"**YouTube Videos:**\n{youtube_text}")
-
-        if not context_parts:
-            return "No results found from any source."
-
-        context = "\n\n".join(context_parts)
-
-        prompt = f"""Based on the following search results for "{query}", provide a comprehensive summary that combines the key information from all sources. Be concise but informative.
-
-{context}
-
-Provide a 2-3 paragraph summary that answers the query and cites which sources the information comes from."""
-
-        def _call_llm():
-            response = self.llm.invoke([
-                SystemMessage(content="You are a research assistant that synthesizes information from multiple sources."),
-                HumanMessage(content=prompt)
-            ])
-            return response.content
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(self.executor, _call_llm)
 
     async def search_source(self, query: str, source: str) -> Dict[str, Any]:
         """Search a specific source."""
