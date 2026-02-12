@@ -1,8 +1,12 @@
+import logging
+
 import httpx
 import feedparser
 from datetime import datetime
 from typing import List, Dict, Any
 from email.utils import parsedate_to_datetime
+
+logger = logging.getLogger(__name__)
 
 
 class HuggingFaceFetcher:
@@ -59,11 +63,11 @@ class HuggingFaceFetcher:
                     }
                     articles.append(article)
                 except Exception as e:
-                    print(f"Error parsing HuggingFace blog entry: {e}")
+                    logger.warning("Error parsing HuggingFace blog entry: %s", e)
                     continue
 
         except Exception as e:
-            print(f"Error fetching HuggingFace blog: {e}")
+            logger.warning("Error fetching HuggingFace blog: %s", e)
 
         return articles
 
@@ -104,11 +108,11 @@ class HuggingFaceFetcher:
                     }
                     articles.append(article)
                 except Exception as e:
-                    print(f"Error parsing HuggingFace paper: {e}")
+                    logger.warning("Error parsing HuggingFace paper: %s", e)
                     continue
 
         except Exception as e:
-            print(f"Error fetching HuggingFace papers: {e}")
+            logger.warning("Error fetching HuggingFace papers: %s", e)
 
         return articles
 

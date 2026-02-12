@@ -1,16 +1,35 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, text, or_
-from typing import Optional, List
+from sqlalchemy import select, desc, func, text
+from typing import Optional
 from datetime import datetime, timedelta
-import json
 
 from ..database import get_db
 from ..models import Article
 from ..services.summarizer import summarizer_service
 
 router = APIRouter(prefix="/api/articles", tags=["articles"])
-# Category filter fix: parse JSON string if needed
+
+
+def _apply_filters(query, source, category, days, bookmarked):
+    """Apply shared filters to a query (works for both data + count queries)."""
+    if source:
+        query = query.where(Article.source == source)
+
+    if bookmarked is not None:
+        query = query.where(Article.is_bookmarked == bookmarked)
+
+    if days:
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        query = query.where(Article.published_at >= cutoff_date)
+
+    if category:
+        # Use SQLite JSON1 extension to filter at the database level
+        query = query.where(
+            text("EXISTS (SELECT 1 FROM json_each(articles.categories) WHERE json_each.value = :cat)")
+        ).params(cat=category)
+
+    return query
 
 
 @router.get("")
@@ -24,44 +43,24 @@ async def list_articles(
     offset: int = Query(0, ge=0),
 ):
     """List articles with optional filters."""
-    query = select(Article).order_by(desc(Article.published_at), desc(Article.fetched_at))
+    # Count total matching articles
+    count_query = _apply_filters(
+        select(func.count(Article.id)), source, category, days, bookmarked
+    )
+    total = (await db.execute(count_query)).scalar()
 
-    # Apply filters
-    if source:
-        query = query.where(Article.source == source)
+    # Fetch paginated results
+    data_query = _apply_filters(
+        select(Article), source, category, days, bookmarked
+    ).order_by(
+        desc(Article.published_at), desc(Article.fetched_at)
+    ).offset(offset).limit(limit)
 
-    if bookmarked is not None:
-        query = query.where(Article.is_bookmarked == bookmarked)
-
-    if days:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
-        query = query.where(Article.published_at >= cutoff_date)
-
-    # Fetch all matching articles first (before pagination)
-    result = await db.execute(query)
-    all_articles = result.scalars().all()
-
-    # Filter by category in Python (since it's stored as JSON)
-    if category:
-        def has_category(article, cat):
-            cats = article.categories
-            if not cats:
-                return False
-            # Handle case where categories is a JSON string (SQLite)
-            if isinstance(cats, str):
-                cats = json.loads(cats)
-            return cat in cats
-
-        all_articles = [a for a in all_articles if has_category(a, category)]
-
-    # Calculate total before pagination
-    total = len(all_articles)
-
-    # Apply pagination in Python
-    paginated_articles = all_articles[offset:offset + limit]
+    result = await db.execute(data_query)
+    articles = result.scalars().all()
 
     return {
-        "articles": [a.to_dict() for a in paginated_articles],
+        "articles": [a.to_dict() for a in articles],
         "total": total,
         "limit": limit,
         "offset": offset,

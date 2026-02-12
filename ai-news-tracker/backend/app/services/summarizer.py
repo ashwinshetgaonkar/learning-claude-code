@@ -1,6 +1,10 @@
+import logging
+
 from groq import AsyncGroq
 from typing import Optional
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class SummarizerService:
@@ -14,6 +18,8 @@ class SummarizerService:
         if not self._initialized:
             if settings.groq_api_key:
                 self._client = AsyncGroq(api_key=settings.groq_api_key)
+            else:
+                logger.warning("GROQ_API_KEY not configured - summarization disabled")
             self._initialized = True
         return self._client
 
@@ -61,7 +67,7 @@ Summary:"""
             return None
 
         except Exception as e:
-            print(f"Error generating summary: {e}")
+            logger.exception("Error generating summary")
             return None
 
     async def categorize(
@@ -107,7 +113,7 @@ Categories:"""
             return []
 
         except Exception as e:
-            print(f"Error categorizing: {e}")
+            logger.exception("Error categorizing")
             return []
 
 

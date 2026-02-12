@@ -1,8 +1,12 @@
+import logging
+
 import httpx
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import List, Dict, Any
 import asyncio
+
+logger = logging.getLogger(__name__)
 
 
 class ArxivFetcher:
@@ -32,7 +36,7 @@ class ArxivFetcher:
             response.raise_for_status()
             articles = self._parse_response(response.text)
         except Exception as e:
-            print(f"Error fetching from arXiv: {e}")
+            logger.warning("Error fetching from arXiv: %s", e)
 
         return articles
 
@@ -116,7 +120,7 @@ class ArxivFetcher:
                 articles.append(article)
 
             except Exception as e:
-                print(f"Error parsing arXiv entry: {e}")
+                logger.warning("Error parsing arXiv entry: %s", e)
                 continue
 
         return articles
