@@ -1,6 +1,10 @@
+import logging
+
 import httpx
 from typing import Optional
 from io import BytesIO
+
+logger = logging.getLogger(__name__)
 
 try:
     from weasyprint import HTML, CSS
@@ -34,7 +38,7 @@ class PDFGenerator:
             pdf_bytes = html.write_pdf(stylesheets=[css])
             return pdf_bytes
         except Exception as e:
-            print(f"Error generating PDF: {e}")
+            logger.warning("Error generating PDF: %s", e)
             return None
 
     async def download_pdf(self, pdf_url: str) -> Optional[bytes]:
@@ -47,7 +51,7 @@ class PDFGenerator:
                 return response.content
             return None
         except Exception as e:
-            print(f"Error downloading PDF: {e}")
+            logger.warning("Error downloading PDF: %s", e)
             return None
 
     def _create_html(

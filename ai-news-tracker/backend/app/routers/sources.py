@@ -3,14 +3,12 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.dialects.sqlite import insert
 from typing import Optional
 
 from ..database import get_db
 from ..models import Article
-from ..services.fetchers import ArxivFetcher, HuggingFaceFetcher, BlogFetcher, AggregatorFetcher
+from ..services.fetchers import FETCHER_REGISTRY, get_fetcher
 from ..utils.categorizer import auto_categorize, deduplicate_articles
-from ..config import settings
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 
@@ -67,9 +65,9 @@ async def refresh_all_sources(
     results = {}
     all_articles = []
 
-    async def _fetch_source(name, fetcher_factory, **kwargs):
+    async def _fetch_source(name):
         try:
-            fetcher = fetcher_factory(**kwargs)
+            fetcher = get_fetcher(name)
             articles = await fetcher.fetch(max_results=max_per_source)
             await fetcher.close()
             return name, articles, {"fetched": len(articles), "status": "success"}
@@ -78,12 +76,7 @@ async def refresh_all_sources(
 
     # Fetch all sources in parallel
     fetch_results = await asyncio.gather(
-        _fetch_source("arxiv", ArxivFetcher),
-        _fetch_source("huggingface", HuggingFaceFetcher),
-        _fetch_source("blogs", BlogFetcher),
-        _fetch_source("aggregators", AggregatorFetcher,
-                      reddit_client_id=settings.reddit_client_id,
-                      reddit_client_secret=settings.reddit_client_secret),
+        *[_fetch_source(name) for name in FETCHER_REGISTRY]
     )
 
     for name, articles, result in fetch_results:
@@ -111,29 +104,13 @@ async def refresh_source(
     max_results: int = 50,
 ):
     """Refresh a specific source."""
-    articles = []
+    try:
+        fetcher = get_fetcher(source)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    if source == "arxiv":
-        fetcher = ArxivFetcher()
-        articles = await fetcher.fetch(max_results=max_results)
-        await fetcher.close()
-    elif source == "huggingface":
-        fetcher = HuggingFaceFetcher()
-        articles = await fetcher.fetch(max_results=max_results)
-        await fetcher.close()
-    elif source == "blogs":
-        fetcher = BlogFetcher()
-        articles = await fetcher.fetch(max_results=max_results)
-        await fetcher.close()
-    elif source == "aggregators":
-        fetcher = AggregatorFetcher(
-            reddit_client_id=settings.reddit_client_id,
-            reddit_client_secret=settings.reddit_client_secret,
-        )
-        articles = await fetcher.fetch(max_results=max_results)
-        await fetcher.close()
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown source: {source}")
+    articles = await fetcher.fetch(max_results=max_results)
+    await fetcher.close()
 
     # Deduplicate and save
     unique_articles = deduplicate_articles(articles)

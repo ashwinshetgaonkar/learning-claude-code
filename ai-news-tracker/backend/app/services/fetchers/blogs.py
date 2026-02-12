@@ -1,9 +1,13 @@
+import logging
+
 import httpx
 import feedparser
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import List, Dict, Any
 from email.utils import parsedate_to_datetime
+
+logger = logging.getLogger(__name__)
 
 
 class BlogFetcher:
@@ -52,7 +56,7 @@ class BlogFetcher:
 
                 articles.extend(source_articles[:max_results // len(self.BLOG_SOURCES)])
             except Exception as e:
-                print(f"Error fetching from {source_info['name']}: {e}")
+                logger.warning("Error fetching from %s: %s", source_info['name'], e)
                 continue
 
         return articles
@@ -108,11 +112,11 @@ class BlogFetcher:
                     }
                     articles.append(article)
                 except Exception as e:
-                    print(f"Error parsing RSS entry from {source_info['name']}: {e}")
+                    logger.warning("Error parsing RSS entry from %s: %s", source_info['name'], e)
                     continue
 
         except Exception as e:
-            print(f"Error fetching RSS from {source_info['name']}: {e}")
+            logger.warning("Error fetching RSS from %s: %s", source_info['name'], e)
 
         return articles
 
@@ -171,11 +175,11 @@ class BlogFetcher:
                         }
                         articles.append(article)
                 except Exception as e:
-                    print(f"Error parsing scraped post from {source_info['name']}: {e}")
+                    logger.warning("Error parsing scraped post from %s: %s", source_info['name'], e)
                     continue
 
         except Exception as e:
-            print(f"Error scraping {source_info['name']}: {e}")
+            logger.warning("Error scraping %s: %s", source_info['name'], e)
 
         return articles
 

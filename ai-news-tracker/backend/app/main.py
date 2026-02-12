@@ -1,43 +1,32 @@
-import sys
-print("Loading main.py...", file=sys.stderr, flush=True)
+import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
-print("Importing config...", file=sys.stderr, flush=True)
 from .config import settings
-
-print("Importing database...", file=sys.stderr, flush=True)
 from .database import init_db
 
-print("Importing routers...", file=sys.stderr, flush=True)
+logger = logging.getLogger(__name__)
+
 try:
     from .routers import articles_router, sources_router, bookmarks_router, export_router, agents_router
-    print("Routers imported successfully", file=sys.stderr, flush=True)
 except Exception as e:
-    print(f"ERROR importing routers: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
-    import traceback
-    traceback.print_exc()
+    logger.exception("Failed to import routers")
     raise
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    import sys
-    print("Starting application...", file=sys.stderr, flush=True)
     try:
         await init_db()
-        print("Database initialized successfully", file=sys.stderr, flush=True)
+        logger.info("Database initialized successfully")
     except Exception as e:
-        print(f"ERROR initializing database: {e}", file=sys.stderr, flush=True)
-        import traceback
-        traceback.print_exc()
+        logger.exception("Failed to initialize database")
         raise
     yield
-    # Shutdown
-    pass
 
 
 app = FastAPI(
@@ -46,6 +35,16 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 # Configure CORS
 app.add_middleware(

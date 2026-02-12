@@ -1,6 +1,10 @@
+import logging
+
 import httpx
 from datetime import datetime
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class AggregatorFetcher:
@@ -80,11 +84,11 @@ class AggregatorFetcher:
                         if not any(a["source_id"] == article["source_id"] for a in articles):
                             articles.append(article)
                     except Exception as e:
-                        print(f"Error parsing HN hit: {e}")
+                        logger.warning("Error parsing HN hit: %s", e)
                         continue
 
             except Exception as e:
-                print(f"Error fetching from HN for term '{term}': {e}")
+                logger.warning("Error fetching from HN for term '%s': %s", term, e)
                 continue
 
         return articles
@@ -138,11 +142,11 @@ class AggregatorFetcher:
                     }
                     articles.append(article)
                 except Exception as e:
-                    print(f"Error parsing Reddit post: {e}")
+                    logger.warning("Error parsing Reddit post: %s", e)
                     continue
 
         except Exception as e:
-            print(f"Error fetching from Reddit: {e}")
+            logger.warning("Error fetching from Reddit: %s", e)
 
         return articles
 
